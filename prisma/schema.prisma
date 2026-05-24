@@ -36,10 +36,7 @@ model OrderLog {
   service     String   // service code (e.g. "wa")
   serviceName String   // display name
   country     String
-  countryId   Int?     // ditznesia country id (untuk tracking margin per negara)
   number      String
-  costIdr     Int?     // harga ditznesia (cost) saat order dibuat
-  priceIdr    Int?     // harga jual ke user (setelah pricing rule)
   outcome     String   // "otp_received" | "expired" | "cancelled" | "timeout" | "pending"
   otp         String?  // OTP text saat outcome=otp_received
   otpAt       DateTime?
@@ -51,20 +48,4 @@ model OrderLog {
   @@index([userId])
   @@index([createdAt])
   @@map("order_logs")
-}
-
-model PriceRule {
-  id          String   @id @default(cuid())
-  serviceCode String   // "wa" | "tg" — service code dari ditznesia
-  countryId   Int      @default(0) // 0 = default service-level (semua negara)
-  priceType   String   // "fixed" | "multiply" | "markup"
-  value       Int      // fixed: harga IDR, multiply: persen (150=1.5x), markup: tambahan IDR
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@unique([serviceCode, countryId])
-  @@index([serviceCode])
-  @@index([active])
-  @@map("price_rules")
 }

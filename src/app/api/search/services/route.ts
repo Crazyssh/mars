@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { mars, flattenServices } from "@/lib/mars";
 import { requireAuth } from "@/lib/auth";
-import { applyPricing } from "@/lib/pricing";
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth();
@@ -16,19 +15,9 @@ export async function GET(req: NextRequest) {
 
   try {
     const response = await mars.listServices(countryId);
-    const flat = flattenServices(response, q);
-
-    // Apply pricing rule per item — user lihat harga jual, gak lihat cost.
-    const data = await Promise.all(
-      flat.map(async (s) => {
-        const priced = await applyPricing(s.priceIdr, s.code, countryId);
-        return { ...s, priceIdr: priced.price };
-      })
-    );
-    // Re-sort by harga jual (sebelumnya sort by cost)
-    data.sort((a, b) => a.priceIdr - b.priceIdr);
-
-    return NextResponse.json({ data, total: data.length });
+    const all = flattenServices(response, q);
+    // Return semua — client side filter
+    return NextResponse.json({ data: all, total: all.length });
   } catch (e) {
     return NextResponse.json(
       { error: (e as Error).message },

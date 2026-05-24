@@ -323,9 +323,6 @@ export default function Dashboard({ user }: { user: User }) {
                 <a href="/admin/users" className="btn btn-secondary text-xs">
                   Users
                 </a>
-                <a href="/admin/pricing" className="btn btn-secondary text-xs">
-                  Pricing
-                </a>
                 <a href="/admin/cookies" className="btn btn-secondary text-xs">
                   Cookies
                 </a>

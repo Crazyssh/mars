@@ -93,9 +93,6 @@ export default function AdminUsers() {
             <a href="/admin/orders" className="btn btn-secondary text-xs">
               Orders
             </a>
-            <a href="/admin/pricing" className="btn btn-secondary text-xs">
-              Pricing
-            </a>
             <a href="/admin/cookies" className="btn btn-secondary text-xs">
               Cookies
             </a>
