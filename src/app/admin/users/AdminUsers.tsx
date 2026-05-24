@@ -88,10 +88,18 @@ export default function AdminUsers() {
     <div className="min-h-screen bg-slate-50">
       <header className="bg-white border-b border-slate-200">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          <h1 className="font-bold">Manage Users</h1>
-          <a href="/" className="btn btn-secondary text-xs">
-            ← Dashboard
-          </a>
+          <h1 className="font-bold">Admin · Users</h1>
+          <div className="flex gap-2">
+            <a href="/admin/orders" className="btn btn-secondary text-xs">
+              Orders
+            </a>
+            <a href="/admin/cookies" className="btn btn-secondary text-xs">
+              Cookies
+            </a>
+            <a href="/" className="btn btn-secondary text-xs">
+              ← Dashboard
+            </a>
+          </div>
         </div>
       </header>
 

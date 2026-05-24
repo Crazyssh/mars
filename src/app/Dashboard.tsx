@@ -116,14 +116,12 @@ export default function Dashboard({ user }: { user: User }) {
     fetchHistory();
   }, [fetchHistory]);
 
-  // Auto-refresh history setiap 3 detik kalau ada PENDING order — biar OTP
-  // muncul realtime tanpa manual refresh (terutama setelah bulk order)
+  // Auto-refresh history setiap 10 detik supaya OTP yang masuk pas user buka
+  // tab/app lain tetep muncul saat balik. (Server poller sudah save OTP ke DB.)
   useEffect(() => {
-    const hasPending = history.some((h) => h.status === "PENDING" && !h.otp);
-    if (!hasPending) return;
-    const interval = setInterval(fetchHistory, 3000);
+    const interval = setInterval(fetchHistory, 10_000);
     return () => clearInterval(interval);
-  }, [history, fetchHistory]);
+  }, [fetchHistory]);
 
   // ---------- Active order polling ----------
   useEffect(() => {
@@ -318,9 +316,17 @@ export default function Dashboard({ user }: { user: User }) {
           </div>
           <div className="flex items-center gap-2">
             {user.role === "admin" && (
-              <a href="/admin/users" className="btn btn-secondary text-xs">
-                Admin
-              </a>
+              <>
+                <a href="/admin/orders" className="btn btn-secondary text-xs">
+                  Orders
+                </a>
+                <a href="/admin/users" className="btn btn-secondary text-xs">
+                  Users
+                </a>
+                <a href="/admin/cookies" className="btn btn-secondary text-xs">
+                  Cookies
+                </a>
+              </>
             )}
             <button onClick={logout} className="btn btn-secondary text-xs">
               Logout

@@ -68,7 +68,7 @@ Lalu di RDP server:
 
 ```powershell
 cd C:\
-git clone https://github.com/<username>/mars-web.git mars-web
+git clone https://github.com/crazyssh/mars-web.git mars-web
 cd mars-web
 ```
 

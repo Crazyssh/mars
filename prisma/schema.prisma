@@ -21,6 +21,14 @@ model User {
   @@map("users")
 }
 
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
 model OrderLog {
   id          String   @id @default(cuid())
   userId      String
@@ -30,7 +38,9 @@ model OrderLog {
   country     String
   number      String
   outcome     String   // "otp_received" | "expired" | "cancelled" | "timeout" | "pending"
+  otp         String?  // OTP text saat outcome=otp_received
   otpAt       DateTime?
+  status      String?  // raw status dari ditznesia (PENDING/Sukses/TIME OUT/Dibatalkan)
   createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -14,26 +14,27 @@ export async function POST(
 
   const { id } = await ctx.params;
 
-  // 2-minute rule
-  try {
-    const order = await mars.getOrder(id);
-    if (order?.order_time) {
-      const ageSec = Math.floor(Date.now() / 1000) - order.order_time;
-      if (ageSec < CANCEL_MIN_AGE_SEC) {
-        const remain = CANCEL_MIN_AGE_SEC - ageSec;
-        const mm = Math.floor(remain / 60);
-        const ss = remain % 60;
-        return NextResponse.json(
-          {
-            error: `Order baru bisa dibatalkan setelah 2 menit. Sisa: ${mm}m ${ss}s`,
-            code: "TOO_EARLY",
-          },
-          { status: 400 }
-        );
-      }
-    }
-  } catch {
-    // ignore, biarin lanjut cancel
+  // Ownership check
+  const log = await prisma.orderLog.findFirst({
+    where: { orderId: id, userId: auth.user.id },
+  });
+  if (!log) {
+    return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  }
+
+  // 2-minute rule — pakai createdAt dari DB sebagai fallback kalau live fail
+  const ageSec = Math.floor((Date.now() - log.createdAt.getTime()) / 1000);
+  if (ageSec < CANCEL_MIN_AGE_SEC) {
+    const remain = CANCEL_MIN_AGE_SEC - ageSec;
+    const mm = Math.floor(remain / 60);
+    const ss = remain % 60;
+    return NextResponse.json(
+      {
+        error: `Order baru bisa dibatalkan setelah 2 menit. Sisa: ${mm}m ${ss}s`,
+        code: "TOO_EARLY",
+      },
+      { status: 400 }
+    );
   }
 
   try {

@@ -7,6 +7,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { config } from "./config";
 import { extractCountriesV3, extractSaldo } from "./parse-html";
+import { getSetting, setSetting, SETTING_KEYS } from "./settings";
 
 const execFileAsync = promisify(execFile);
 const CURL_BINARY = process.platform === "win32" ? "curl.exe" : "curl";
@@ -166,11 +167,39 @@ export async function verifyCurlAvailable(): Promise<void> {
 
 class MarsClient {
   private countriesCache: MarsCountry[] = [];
-  private cookieHeader(): string {
-    return [
-      `PHPSESSID=${config.mars.phpsessid}`,
-      `cf_clearance=${config.mars.cfClearance}`,
-    ].join("; ");
+
+  /**
+   * Get current PHPSESSID — prefer DB (live update via /admin/cookies),
+   * fallback ke .env.
+   */
+  async getPhpsessid(): Promise<string> {
+    return (
+      (await getSetting(SETTING_KEYS.MARS_PHPSESSID)) ??
+      config.mars.phpsessid
+    );
+  }
+
+  async getCfClearance(): Promise<string> {
+    return (
+      (await getSetting(SETTING_KEYS.MARS_CF_CLEARANCE)) ??
+      config.mars.cfClearance
+    );
+  }
+
+  /**
+   * Update cookies di DB. Live — request berikutnya pakai value baru.
+   */
+  async setCookies(phpsessid: string, cfClearance: string): Promise<void> {
+    await setSetting(SETTING_KEYS.MARS_PHPSESSID, phpsessid);
+    await setSetting(SETTING_KEYS.MARS_CF_CLEARANCE, cfClearance);
+  }
+
+  private async cookieHeader(): Promise<string> {
+    const [phpsessid, cfClearance] = await Promise.all([
+      this.getPhpsessid(),
+      this.getCfClearance(),
+    ]);
+    return `PHPSESSID=${phpsessid}; cf_clearance=${cfClearance}`;
   }
 
   get countries(): MarsCountry[] {
@@ -233,7 +262,7 @@ class MarsClient {
       "-H", "sec-fetch-mode: cors",
       "-H", "sec-fetch-site: same-origin",
       "-H", "Priority: u=1, i",
-      "-b", this.cookieHeader(),
+      "-b", await this.cookieHeader(),
     ];
     if (opts.method === "POST" && opts.body !== undefined) {
       args.push("-H", "Content-Type: application/x-www-form-urlencoded; charset=UTF-8");
