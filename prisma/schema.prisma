@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("user") // "admin" | "user"
+  createdAt DateTime @default(now())
+  createdBy String?
+
+  orderLogs OrderLog[]
+
+  @@map("users")
+}
+
+model OrderLog {
+  id          String   @id @default(cuid())
+  userId      String
+  orderId     String   // ditznesia order_id
+  service     String   // service code (e.g. "wa")
+  serviceName String   // display name
+  country     String
+  number      String
+  outcome     String   // "otp_received" | "expired" | "cancelled" | "timeout" | "pending"
+  otpAt       DateTime?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("order_logs")
+}
