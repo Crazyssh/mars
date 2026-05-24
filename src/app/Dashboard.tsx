@@ -166,7 +166,7 @@ export default function Dashboard({ user }: { user: User }) {
       services.map((s) => ({
         value: s.code,
         label: s.name,
-        hint: `stok ${s.stock}`,
+        hint: `Rp ${s.priceIdr.toLocaleString("id-ID")} · stok ${s.stock}`,
       })),
     [services]
   );
@@ -176,7 +176,11 @@ export default function Dashboard({ user }: { user: User }) {
     : null;
 
   const selectedServiceItem: ComboItem | null = selectedService
-    ? { value: selectedService.code, label: selectedService.name, hint: `stok ${selectedService.stock}` }
+    ? {
+        value: selectedService.code,
+        label: selectedService.name,
+        hint: `Rp ${selectedService.priceIdr.toLocaleString("id-ID")} · stok ${selectedService.stock}`,
+      }
     : null;
 
   // ---------- Actions ----------
@@ -422,7 +426,11 @@ export default function Dashboard({ user }: { user: User }) {
                   disabled={!selectedService || ordering}
                   className="btn btn-primary"
                 >
-                  {ordering && !bulkProgress ? "Memesan..." : "Beli 1"}
+                  {ordering && !bulkProgress
+                    ? "Memesan..."
+                    : selectedService
+                      ? `Beli 1 (Rp ${selectedService.priceIdr.toLocaleString("id-ID")})`
+                      : "Beli 1"}
                 </button>
                 <button
                   onClick={() => placeOrderBulk(5)}
@@ -431,7 +439,9 @@ export default function Dashboard({ user }: { user: User }) {
                 >
                   {bulkProgress
                     ? `${bulkProgress.done}/${bulkProgress.total}`
-                    : "Beli 5x"}
+                    : selectedService
+                      ? `Beli 5x (Rp ${(selectedService.priceIdr * 5).toLocaleString("id-ID")})`
+                      : "Beli 5x"}
                 </button>
               </div>
             </div>
