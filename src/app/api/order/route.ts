@@ -3,6 +3,7 @@ import { z } from "zod";
 import { mars, parseHarga } from "@/lib/mars";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { applyPricing } from "@/lib/pricing";
 
 const schema = z.object({
   countryId: z.number().int().min(0),
@@ -30,16 +31,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const priceIdr = parseHarga(info.harga);
+    const costIdr = parseHarga(info.harga);
+    const priced = await applyPricing(costIdr, service, countryId);
     const country = mars.findCountry(countryId);
 
+    // Order ke ditznesia pakai harga asli (cost) — saldo ditznesia yang dipotong.
     const result = await mars.createOrder({
       countryId,
       service,
       serviceName: info.layanan,
       operator: "any",
       namaNegara: country?.slug,
-      priceIdr,
+      priceIdr: costIdr,
     });
 
     if (!result.success || !result.orderId) {
@@ -49,7 +52,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Log ke DB
+    // Log ke DB — simpan cost & price untuk tracking margin
     await prisma.orderLog.create({
       data: {
         userId: auth.user.id,
@@ -57,7 +60,10 @@ export async function POST(req: NextRequest) {
         service,
         serviceName: info.layanan,
         country: country?.name ?? String(countryId),
+        countryId,
         number: result.number ?? "",
+        costIdr,
+        priceIdr: priced.price,
         outcome: "pending",
       },
     });
@@ -68,6 +74,7 @@ export async function POST(req: NextRequest) {
         number: result.number,
         serviceName: info.layanan,
         country: country?.name ?? String(countryId),
+        priceIdr: priced.price,
       },
     });
   } catch (e) {
