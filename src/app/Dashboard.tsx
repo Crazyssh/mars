@@ -319,6 +319,9 @@ export default function Dashboard({ user }: { user: User }) {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <a href="/api-docs" className="btn btn-secondary text-xs">
+              API
+            </a>
             {user.role === "admin" && (
               <>
                 <a href="/admin/orders" className="btn btn-secondary text-xs">

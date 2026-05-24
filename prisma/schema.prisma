@@ -16,6 +16,9 @@ model User {
   createdAt DateTime @default(now())
   createdBy String?
 
+  apiKey    String?  @unique
+  apiKeyAt  DateTime?
+
   orderLogs OrderLog[]
 
   @@map("users")

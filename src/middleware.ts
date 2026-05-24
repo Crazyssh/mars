@@ -30,9 +30,10 @@ export const config = {
     /*
      * Match all paths kecuali:
      * - /api/auth/* (login/logout)
+     * - /api/v1/* (public API dengan API key auth)
      * - /_next (static assets)
      * - /favicon, /images, etc
      */
-    "/((?!api/auth|_next/static|_next/image|favicon.ico).*)",
+    "/((?!api/auth|api/v1|_next/static|_next/image|favicon.ico).*)",
   ],
 };
