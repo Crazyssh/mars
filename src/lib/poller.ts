@@ -30,10 +30,10 @@ async function tick(): Promise<void> {
   });
   if (pending.length === 0) return;
 
-  // 2. Fetch live data dari ditznesia — 1 request limit=100 row
+  // 2. Fetch live data dari ditznesia — multi-page (≈100 row)
   let live: Awaited<ReturnType<typeof mars.getHistoryAll>> = [];
   try {
-    live = await mars.getHistoryAll(1, 100);
+    live = await mars.getHistoryAll(10);
   } catch (e) {
     console.warn("[poller] getHistoryAll failed:", (e as Error).message);
     return;

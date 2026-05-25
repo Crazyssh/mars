@@ -404,10 +404,13 @@ class MarsClient {
     };
   }
 
-  async getHistory(page = 1, limit = 100): Promise<HistoryOrder[]> {
-    // Endpoint XHR ditznesia: HARUS pakai action=infoOrder, plus support
-    // limit & page untuk narik banyak row.
-    const path = `/orderv3?action=infoOrder&limit=${limit}&page=${page}`;
+  async getHistory(page = 1): Promise<HistoryOrder[]> {
+    // Endpoint XHR asli ditznesia. Tanpa limit (param limit malah trigger
+    // ditznesia render HTML page). Pagination via &page=N.
+    const path =
+      page > 1
+        ? `/orderv3?action=infoOrder&page=${page}`
+        : `/orderv3?action=infoOrder`;
     const res = await this.request({
       method: "GET",
       path,
@@ -419,7 +422,6 @@ class MarsClient {
         res.body.slice(0, 300)
       );
     }
-    // Validasi: kalau body mulai dengan "<", itu HTML (endpoint salah / cookies expired)
     const trimmed = res.body.trimStart();
     if (trimmed.startsWith("<")) {
       throw new MarsError(
@@ -445,16 +447,15 @@ class MarsClient {
   }
 
   /**
-   * Ambil semua history dengan satu request (limit=100). Kalau perlu lebih,
-   * tinggal naikin maxPages — bakal pagination otomatis.
+   * Multi-page sampai dapet semua row unik. Default 10 page (≈100 row).
    */
-  async getHistoryAll(maxPages = 1, limit = 100): Promise<HistoryOrder[]> {
+  async getHistoryAll(maxPages = 10): Promise<HistoryOrder[]> {
     const all: HistoryOrder[] = [];
     const seen = new Set<string>();
     for (let p = 1; p <= maxPages; p++) {
       let pageData: HistoryOrder[];
       try {
-        pageData = await this.getHistory(p, limit);
+        pageData = await this.getHistory(p);
       } catch (e) {
         if (p === 1) throw e;
         break;
@@ -468,13 +469,13 @@ class MarsClient {
           newCount++;
         }
       }
-      if (newCount === 0) break;
+      if (newCount === 0) break; // page baru gak nambah row → endpoint gak support pagination
     }
     return all;
   }
 
   async getOrder(orderId: string): Promise<HistoryOrder | null> {
-    const all = await this.getHistoryAll(1, 100);
+    const all = await this.getHistoryAll();
     return all.find((o) => o.order_id === orderId) ?? null;
   }
 }
