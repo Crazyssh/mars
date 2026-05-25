@@ -116,12 +116,13 @@ export default function Dashboard({ user }: { user: User }) {
     fetchHistory();
   }, [fetchHistory]);
 
-  // Auto-refresh history setiap 10 detik supaya OTP yang masuk pas user buka
-  // tab/app lain tetep muncul saat balik. (Server poller sudah save OTP ke DB.)
+  // Auto-refresh history. Interval adaptif: 4 detik kalau ada PENDING (biar OTP
+  // muncul cepet), 15 detik kalau gak ada (hemat resource).
   useEffect(() => {
-    const interval = setInterval(fetchHistory, 10_000);
+    const hasPending = history.some((h) => h.status === "PENDING" && !h.otp);
+    const interval = setInterval(fetchHistory, hasPending ? 4_000 : 15_000);
     return () => clearInterval(interval);
-  }, [fetchHistory]);
+  }, [history, fetchHistory]);
 
   // ---------- Active order polling ----------
   useEffect(() => {

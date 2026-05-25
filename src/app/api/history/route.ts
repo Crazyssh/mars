@@ -4,6 +4,9 @@ import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { syncOrderFromLive, outcomeToStatus } from "@/lib/order-sync";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 /**
  * GET /api/history — return riwayat order user yang lagi login.
  *
@@ -17,11 +20,11 @@ export async function GET() {
   if (auth.error) return auth.error;
 
   try {
-    // 1. Ambil log order milik user ini dari DB (max 50)
+    // 1. Ambil log order milik user ini dari DB (max 100)
     const myLogs = await prisma.orderLog.findMany({
       where: { userId: auth.user.id },
       orderBy: { createdAt: "desc" },
-      take: 50,
+      take: 100,
     });
 
     if (myLogs.length === 0) {
@@ -63,7 +66,14 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json({ data });
+    return NextResponse.json(
+      { data },
+      {
+        headers: {
+          "Cache-Control": "no-store, must-revalidate",
+        },
+      }
+    );
   } catch (e) {
     return NextResponse.json(
       { error: (e as Error).message },

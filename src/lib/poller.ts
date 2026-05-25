@@ -12,7 +12,7 @@ import { mars } from "./mars";
 import { prisma } from "./prisma";
 import { syncOrderFromLive } from "./order-sync";
 
-const INTERVAL_MS = 15_000;
+const INTERVAL_MS = 8_000;
 // OTP lifetime ditznesia ~20 menit. Pake 22 menit sebagai safety buffer
 // supaya kalau ada delay di ditznesia, kita gak salah mark expired.
 const PENDING_TIMEOUT_MS = 22 * 60 * 1000;
