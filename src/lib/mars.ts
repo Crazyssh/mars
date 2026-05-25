@@ -423,7 +423,7 @@ class MarsClient {
     };
   }
 
-  async getHistory(page = 1, limit = 50): Promise<HistoryOrder[]> {
+  async getHistory(page = 1, limit = 100): Promise<HistoryOrder[]> {
     // Endpoint XHR ditznesia. Format param HARUS persis seperti yg dipake web
     // ditznesia: nomor=&status=&limit=N&page=N&action=infoOrder.
     // Tanpa kombinasi ini, ditznesia render HTML page bukan JSON.
@@ -467,10 +467,10 @@ class MarsClient {
   }
 
   /**
-   * Multi-page sampai dapet semua row unik. Default 1 page (limit=50 row),
+   * Multi-page sampai dapet semua row unik. Default 1 page (limit=100 row),
    * itu udah cukup untuk hampir semua kasus.
    */
-  async getHistoryAll(maxPages = 1, limit = 50): Promise<HistoryOrder[]> {
+  async getHistoryAll(maxPages = 1, limit = 100): Promise<HistoryOrder[]> {
     const all: HistoryOrder[] = [];
     const seen = new Set<string>();
     for (let p = 1; p <= maxPages; p++) {
@@ -496,7 +496,7 @@ class MarsClient {
   }
 
   async getOrder(orderId: string): Promise<HistoryOrder | null> {
-    const list = await this.getHistory(1, 50);
+    const list = await this.getHistory(1, 100);
     return list.find((o) => o.order_id === orderId) ?? null;
   }
 }
