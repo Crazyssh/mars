@@ -14,3 +14,6 @@ prisma/data
 .idea
 .vscode
 *.tsbuildinfo
+*.png
+*.jpg
+*.jpeg
