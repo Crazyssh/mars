@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 import { config } from "./config";
 import { extractCountriesV3, extractSaldo } from "./parse-html";
 import { getSetting, setSetting, SETTING_KEYS } from "./settings";
+import { withCache, setCacheValue, CACHE_KEYS } from "./live-cache";
 
 const execFileAsync = promisify(execFile);
 const CURL_BINARY = process.platform === "win32" ? "curl.exe" : "curl";
@@ -328,27 +329,29 @@ class MarsClient {
   }
 
   async listServices(countryId: number): Promise<ServicesResponse> {
-    const res = await this.request({
-      method: "POST",
-      path: "/orderv3",
-      body: `country=${countryId}`,
+    return withCache(CACHE_KEYS.SERVICES(countryId), 30_000, async () => {
+      const res = await this.request({
+        method: "POST",
+        path: "/orderv3",
+        body: `country=${countryId}`,
+      });
+      if (res.status !== 200) {
+        throw new MarsError(
+          `Gagal listServices (country ${countryId})`,
+          res.status,
+          res.body.slice(0, 200)
+        );
+      }
+      const data = parseJsonSafe<ServicesResponse>(res.body);
+      if (!data || typeof data !== "object") {
+        throw new MarsError(
+          `Response listServices bukan JSON valid`,
+          res.status,
+          res.body.slice(0, 200)
+        );
+      }
+      return data;
     });
-    if (res.status !== 200) {
-      throw new MarsError(
-        `Gagal listServices (country ${countryId})`,
-        res.status,
-        res.body.slice(0, 200)
-      );
-    }
-    const data = parseJsonSafe<ServicesResponse>(res.body);
-    if (!data || typeof data !== "object") {
-      throw new MarsError(
-        `Response listServices bukan JSON valid`,
-        res.status,
-        res.body.slice(0, 200)
-      );
-    }
-    return data;
   }
 
   async listOperators(countryId: number): Promise<string[]> {
@@ -424,9 +427,28 @@ class MarsClient {
   }
 
   async getHistory(page = 1, limit = 100): Promise<HistoryOrder[]> {
-    // Endpoint XHR ditznesia. Format param HARUS persis seperti yg dipake web
-    // ditznesia: nomor=&status=&limit=N&page=N&action=infoOrder.
-    // Tanpa kombinasi ini, ditznesia render HTML page bukan JSON.
+    // Page 1 di-cache karena sering dipake (poller, history endpoint, getOrder).
+    // TTL 7s < poller interval 10s → poller selalu refresh, semua call lain
+    // baca cache.
+    if (page === 1 && limit === 100) {
+      return withCache(CACHE_KEYS.HISTORY_PAGE_1, 7_000, () =>
+        this.fetchHistory(page, limit)
+      );
+    }
+    return this.fetchHistory(page, limit);
+  }
+
+  /** Force-fetch ke ditznesia, bypass cache. Dipake oleh poller. */
+  async fetchHistoryFresh(page = 1, limit = 100): Promise<HistoryOrder[]> {
+    const data = await this.fetchHistory(page, limit);
+    if (page === 1 && limit === 100) {
+      // Update cache supaya call lain dapet data fresh
+      setCacheValue(CACHE_KEYS.HISTORY_PAGE_1, data, 7_000);
+    }
+    return data;
+  }
+
+  private async fetchHistory(page: number, limit: number): Promise<HistoryOrder[]> {
     const path = `/orderv3?nomor=&status=&limit=${limit}&page=${page}&action=infoOrder`;
     const res = await this.request({
       method: "GET",

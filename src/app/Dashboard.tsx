@@ -116,11 +116,13 @@ export default function Dashboard({ user }: { user: User }) {
     fetchHistory();
   }, [fetchHistory]);
 
-  // Auto-refresh history. Interval adaptif: 4 detik kalau ada PENDING (biar OTP
-  // muncul cepet), 15 detik kalau gak ada (hemat resource).
+  // Auto-refresh history. Interval adaptif: 5 detik kalau ada PENDING (biar OTP
+  // muncul cepet), 20 detik kalau gak ada (hemat).
+  // Note: server poller tick tiap 10s, jadi 5s di client menjamin pickup
+  // perubahan dalam 1-2 client tick.
   useEffect(() => {
     const hasPending = history.some((h) => h.status === "PENDING" && !h.otp);
-    const interval = setInterval(fetchHistory, hasPending ? 4_000 : 15_000);
+    const interval = setInterval(fetchHistory, hasPending ? 5_000 : 20_000);
     return () => clearInterval(interval);
   }, [history, fetchHistory]);
 

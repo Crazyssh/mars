@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { mars } from "@/lib/mars";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { syncOrderFromLive, outcomeToStatus } from "@/lib/order-sync";
+import { getCachedValue, CACHE_KEYS } from "@/lib/live-cache";
+import type { HistoryOrder } from "@/lib/mars";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -10,17 +11,15 @@ export const revalidate = 0;
 /**
  * GET /api/history — return riwayat order user yang lagi login.
  *
- * Source-of-truth: tabel OrderLog (per-user, dari DB).
- * Ditznesia /infoOrder dipake untuk dapetin status & OTP terkini, lalu
- * di-sync ke DB lewat syncOrderFromLive() biar OTP gak ilang setelah
- * order keluar dari page 1 ditznesia.
+ * Strategi: baca dari OrderLog DB (poller udah jamin sync max 10s).
+ * Kalau ada cached live data dari ditznesia (TTL 7s) yang sama freshness,
+ * dipake juga buat sync OTP yang baru — tanpa hit ditznesia.
  */
 export async function GET() {
   const auth = await requireAuth();
   if (auth.error) return auth.error;
 
   try {
-    // 1. Ambil log order milik user ini dari DB (max 100)
     const myLogs = await prisma.orderLog.findMany({
       where: { userId: auth.user.id },
       orderBy: { createdAt: "desc" },
@@ -28,32 +27,34 @@ export async function GET() {
     });
 
     if (myLogs.length === 0) {
-      return NextResponse.json({ data: [] });
+      return NextResponse.json(
+        { data: [] },
+        { headers: { "Cache-Control": "no-store, must-revalidate" } }
+      );
     }
 
-    // 2. Ambil ditznesia history (live status + OTP) — best-effort
-    const dzMap = new Map<string, Awaited<ReturnType<typeof mars.getHistory>>[number]>();
-    try {
-      const dz = await mars.getHistory();
-      for (const o of dz) {
+    // Coba dapet live data dari cache memory (gak hit ditznesia).
+    const cached = getCachedValue<HistoryOrder[]>(CACHE_KEYS.HISTORY_PAGE_1);
+    const dzMap = new Map<string, HistoryOrder>();
+    if (cached) {
+      for (const o of cached) {
         dzMap.set(o.order_id, o);
-        // Sync ke DB → save OTP value supaya gak ilang setelah rotate keluar
+        // Sync ke DB → save OTP yang baru muncul (idempotent)
         await syncOrderFromLive(o).catch(() => undefined);
       }
-    } catch {
-      // Kalau gagal ambil dari ditznesia, fallback ke data DB saja
     }
 
-    // 3. Re-fetch DB setelah sync biar dapet OTP value yang baru di-save
+    // Re-fetch DB setelah sync
     const refreshed = await prisma.orderLog.findMany({
       where: { userId: auth.user.id, id: { in: myLogs.map((l) => l.id) } },
       orderBy: { createdAt: "desc" },
     });
 
-    // 4. Merge: prefer data live untuk number/serviceName, fallback ke DB
     const data = refreshed.map((log) => {
       const live = dzMap.get(log.orderId);
-      const otp = log.otp ?? (live && live.otp !== "Menunggu" ? live.otp : null);
+      const otp =
+        log.otp ??
+        (live && live.otp !== "Menunggu" ? live.otp : null);
       return {
         orderId: log.orderId,
         number: live?.number || log.number,
