@@ -405,7 +405,9 @@ class MarsClient {
   }
 
   async getHistory(page = 1, limit = 100): Promise<HistoryOrder[]> {
-    const path = `/orderv3?nomor=&status=&limit=${limit}&page=${page}`;
+    // Endpoint XHR ditznesia: HARUS pakai action=infoOrder, plus support
+    // limit & page untuk narik banyak row.
+    const path = `/orderv3?action=infoOrder&limit=${limit}&page=${page}`;
     const res = await this.request({
       method: "GET",
       path,
@@ -417,10 +419,18 @@ class MarsClient {
         res.body.slice(0, 300)
       );
     }
+    // Validasi: kalau body mulai dengan "<", itu HTML (endpoint salah / cookies expired)
+    const trimmed = res.body.trimStart();
+    if (trimmed.startsWith("<")) {
+      throw new MarsError(
+        "Endpoint return HTML, bukan JSON (cek cookies / format URL)",
+        res.status,
+        res.body.slice(0, 200)
+      );
+    }
     const data = parseJsonSafe<HistoryOrder[] | { data: HistoryOrder[] }>(
       res.body
     );
-    // Support 2 format: array langsung, atau { data: [...] }
     let arr: unknown = data;
     if (data && typeof data === "object" && !Array.isArray(data) && "data" in data) {
       arr = (data as { data: unknown }).data;
