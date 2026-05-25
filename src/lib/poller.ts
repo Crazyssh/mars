@@ -30,11 +30,10 @@ async function tick(): Promise<void> {
   });
   if (pending.length === 0) return;
 
-  // 2. Fetch live data dari ditznesia — multi-page sampai 10 (≈100 row)
-  //    biar bulk order banyak tetep ke-track walau udah tergeser dari page 1
+  // 2. Fetch live data dari ditznesia — 1 request limit=100 row
   let live: Awaited<ReturnType<typeof mars.getHistoryAll>> = [];
   try {
-    live = await mars.getHistoryAll(10);
+    live = await mars.getHistoryAll(1, 100);
   } catch (e) {
     console.warn("[poller] getHistoryAll failed:", (e as Error).message);
     return;

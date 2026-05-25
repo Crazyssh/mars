@@ -404,43 +404,50 @@ class MarsClient {
     };
   }
 
-  async getHistory(page = 1): Promise<HistoryOrder[]> {
-    const path =
-      page > 1
-        ? `/orderv3?action=infoOrder&page=${page}`
-        : `/orderv3?action=infoOrder`;
+  async getHistory(page = 1, limit = 100): Promise<HistoryOrder[]> {
+    const path = `/orderv3?nomor=&status=&limit=${limit}&page=${page}`;
     const res = await this.request({
       method: "GET",
       path,
     });
     if (res.status !== 200) {
       throw new MarsError(
-        "Gagal ambil history",
+        `Gagal ambil history (HTTP ${res.status})`,
         res.status,
-        res.body.slice(0, 200)
+        res.body.slice(0, 300)
       );
     }
-    const data = parseJsonSafe<HistoryOrder[]>(res.body);
-    if (!Array.isArray(data)) {
-      throw new MarsError("Response history bukan array JSON", res.status);
+    const data = parseJsonSafe<HistoryOrder[] | { data: HistoryOrder[] }>(
+      res.body
+    );
+    // Support 2 format: array langsung, atau { data: [...] }
+    let arr: unknown = data;
+    if (data && typeof data === "object" && !Array.isArray(data) && "data" in data) {
+      arr = (data as { data: unknown }).data;
     }
-    return data;
+    if (!Array.isArray(arr)) {
+      throw new MarsError(
+        `Response history bukan array JSON. Body: ${res.body.slice(0, 200)}`,
+        res.status
+      );
+    }
+    return arr as HistoryOrder[];
   }
 
   /**
-   * Ambil history dari multiple page sampai dapet semua row unik atau hit max
-   * page. Detect: kalau page baru gak nambah row unik, anggap udah end.
+   * Ambil semua history dengan satu request (limit=100). Kalau perlu lebih,
+   * tinggal naikin maxPages — bakal pagination otomatis.
    */
-  async getHistoryAll(maxPages = 10): Promise<HistoryOrder[]> {
+  async getHistoryAll(maxPages = 1, limit = 100): Promise<HistoryOrder[]> {
     const all: HistoryOrder[] = [];
     const seen = new Set<string>();
     for (let p = 1; p <= maxPages; p++) {
       let pageData: HistoryOrder[];
       try {
-        pageData = await this.getHistory(p);
+        pageData = await this.getHistory(p, limit);
       } catch (e) {
         if (p === 1) throw e;
-        break; // page 2+ error → stop, kembalikan yang udah ada
+        break;
       }
       if (pageData.length === 0) break;
       let newCount = 0;
@@ -451,15 +458,13 @@ class MarsClient {
           newCount++;
         }
       }
-      // Kalau page ini gak nambah row baru → endpoint gak support pagination
-      // atau udah end. Stop biar gak waste request.
       if (newCount === 0) break;
     }
     return all;
   }
 
   async getOrder(orderId: string): Promise<HistoryOrder | null> {
-    const all = await this.getHistoryAll();
+    const all = await this.getHistoryAll(1, 100);
     return all.find((o) => o.order_id === orderId) ?? null;
   }
 }
