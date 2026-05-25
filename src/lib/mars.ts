@@ -270,10 +270,25 @@ class MarsClient {
     }
     args.push(url);
 
-    const { stdout } = await execFileAsync(CURL_BINARY, args, {
-      maxBuffer: 50 * 1024 * 1024,
-      timeout: 35_000,
-    });
+    let stdout: string;
+    try {
+      const result = await execFileAsync(CURL_BINARY, args, {
+        maxBuffer: 50 * 1024 * 1024,
+        timeout: 35_000,
+      });
+      stdout = result.stdout;
+    } catch (e) {
+      // execFile throws kalau curl exit non-zero. Bisa karena:
+      // - timeout (max-time 30s)
+      // - network/DNS error
+      // - cf_clearance challenge yang return body kosong
+      // Wrap as MarsError biar caller bisa handle.
+      const err = e as Error & { code?: number; stdout?: string };
+      const msg = err.code
+        ? `curl exit code ${err.code}`
+        : err.message?.slice(0, 100) ?? "unknown";
+      throw new MarsError(`curl failed: ${msg}`, 0, err.stdout?.slice(0, 200));
+    }
     const lastNl = stdout.lastIndexOf("\n");
     if (lastNl < 0) {
       throw new MarsError(`Empty curl response`, 0, stdout);
