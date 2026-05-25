@@ -404,10 +404,14 @@ class MarsClient {
     };
   }
 
-  async getHistory(): Promise<HistoryOrder[]> {
+  async getHistory(page = 1): Promise<HistoryOrder[]> {
+    const path =
+      page > 1
+        ? `/orderv3?action=infoOrder&page=${page}`
+        : `/orderv3?action=infoOrder`;
     const res = await this.request({
       method: "GET",
-      path: "/orderv3?action=infoOrder",
+      path,
     });
     if (res.status !== 200) {
       throw new MarsError(
@@ -423,8 +427,39 @@ class MarsClient {
     return data;
   }
 
+  /**
+   * Ambil history dari multiple page sampai dapet semua row unik atau hit max
+   * page. Detect: kalau page baru gak nambah row unik, anggap udah end.
+   */
+  async getHistoryAll(maxPages = 10): Promise<HistoryOrder[]> {
+    const all: HistoryOrder[] = [];
+    const seen = new Set<string>();
+    for (let p = 1; p <= maxPages; p++) {
+      let pageData: HistoryOrder[];
+      try {
+        pageData = await this.getHistory(p);
+      } catch (e) {
+        if (p === 1) throw e;
+        break; // page 2+ error → stop, kembalikan yang udah ada
+      }
+      if (pageData.length === 0) break;
+      let newCount = 0;
+      for (const o of pageData) {
+        if (!seen.has(o.order_id)) {
+          seen.add(o.order_id);
+          all.push(o);
+          newCount++;
+        }
+      }
+      // Kalau page ini gak nambah row baru → endpoint gak support pagination
+      // atau udah end. Stop biar gak waste request.
+      if (newCount === 0) break;
+    }
+    return all;
+  }
+
   async getOrder(orderId: string): Promise<HistoryOrder | null> {
-    const all = await this.getHistory();
+    const all = await this.getHistoryAll();
     return all.find((o) => o.order_id === orderId) ?? null;
   }
 }

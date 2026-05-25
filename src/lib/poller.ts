@@ -30,12 +30,13 @@ async function tick(): Promise<void> {
   });
   if (pending.length === 0) return;
 
-  // 2. Fetch live data dari ditznesia (1 panggilan untuk semua order)
-  let live: Awaited<ReturnType<typeof mars.getHistory>> = [];
+  // 2. Fetch live data dari ditznesia — multi-page sampai 10 (≈100 row)
+  //    biar bulk order banyak tetep ke-track walau udah tergeser dari page 1
+  let live: Awaited<ReturnType<typeof mars.getHistoryAll>> = [];
   try {
-    live = await mars.getHistory();
+    live = await mars.getHistoryAll(10);
   } catch (e) {
-    console.warn("[poller] getHistory failed:", (e as Error).message);
+    console.warn("[poller] getHistoryAll failed:", (e as Error).message);
     return;
   }
   const liveMap = new Map(live.map((o) => [o.order_id, o]));
