@@ -415,6 +415,10 @@ class MarsClient {
       method: "GET",
       path,
     });
+    if (res.status === 429) {
+      // Rate-limited — throw distinguishable error biar caller bisa back off
+      throw new MarsError("Rate limited oleh ditznesia (HTTP 429)", 429);
+    }
     if (res.status !== 200) {
       throw new MarsError(
         `Gagal ambil history (HTTP ${res.status})`,
@@ -475,8 +479,11 @@ class MarsClient {
   }
 
   async getOrder(orderId: string): Promise<HistoryOrder | null> {
-    const all = await this.getHistoryAll();
-    return all.find((o) => o.order_id === orderId) ?? null;
+    // Cuma cek page 1 buat hindari rate limit. Kalau order udah keluar dari
+    // page 1, caller harus fallback ke OrderLog DB (yang udah disinkronin
+    // sama poller).
+    const list = await this.getHistory(1);
+    return list.find((o) => o.order_id === orderId) ?? null;
   }
 }
 

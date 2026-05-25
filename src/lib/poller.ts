@@ -8,39 +8,56 @@
  * Dijalanin sekali via instrumentation.ts (Next.js native bootstrap hook).
  * Singleton via global var biar gak double-start saat Next.js HMR.
  */
-import { mars } from "./mars";
+import { mars, MarsError } from "./mars";
 import { prisma } from "./prisma";
 import { syncOrderFromLive } from "./order-sync";
 
 const INTERVAL_MS = 8_000;
-// OTP lifetime ditznesia ~20 menit. Pake 22 menit sebagai safety buffer
-// supaya kalau ada delay di ditznesia, kita gak salah mark expired.
 const PENDING_TIMEOUT_MS = 22 * 60 * 1000;
+// Kalau kena 429, skip N tick berikutnya biar ditznesia cool down.
+// Total back-off = SKIP_TICKS_ON_429 * INTERVAL_MS = 60 detik
+const SKIP_TICKS_ON_429 = 7;
 
 declare global {
   // eslint-disable-next-line no-var
-  var __marsPoller: { interval: NodeJS.Timeout; running: boolean } | undefined;
+  var __marsPoller:
+    | { interval: NodeJS.Timeout; running: boolean; skipUntilTick: number; tickCount: number }
+    | undefined;
 }
 
-async function tick(): Promise<void> {
-  // 1. Cek apa ada order PENDING di DB
+async function tick(state: {
+  skipUntilTick: number;
+  tickCount: number;
+}): Promise<void> {
+  state.tickCount++;
+  if (state.tickCount < state.skipUntilTick) {
+    return; // back-off mode, skip
+  }
+
   const pending = await prisma.orderLog.findMany({
     where: { outcome: "pending" },
     select: { id: true, orderId: true, createdAt: true },
   });
   if (pending.length === 0) return;
 
-  // 2. Fetch live data dari ditznesia — multi-page (≈100 row)
   let live: Awaited<ReturnType<typeof mars.getHistoryAll>> = [];
   try {
-    live = await mars.getHistoryAll(10);
+    live = await mars.getHistoryAll(1);
   } catch (e) {
+    if (e instanceof MarsError && e.statusCode === 429) {
+      state.skipUntilTick = state.tickCount + SKIP_TICKS_ON_429;
+      console.warn(
+        `[poller] rate-limited (429), back off ${SKIP_TICKS_ON_429} ticks (~${
+          (SKIP_TICKS_ON_429 * INTERVAL_MS) / 1000
+        }s)`
+      );
+      return;
+    }
     console.warn("[poller] getHistoryAll failed:", (e as Error).message);
     return;
   }
   const liveMap = new Map(live.map((o) => [o.order_id, o]));
 
-  // 3. Sync masing-masing pending
   let updated = 0;
   for (const p of pending) {
     const data = liveMap.get(p.orderId);
@@ -48,8 +65,6 @@ async function tick(): Promise<void> {
       const changed = await syncOrderFromLive(data);
       if (changed) updated++;
     } else {
-      // Order udah keluar dari page 1 ditznesia. Kalau udah > 30 menit pending,
-      // anggap expired biar DB gak nyampah.
       const age = Date.now() - p.createdAt.getTime();
       if (age > PENDING_TIMEOUT_MS) {
         await prisma.orderLog
@@ -75,13 +90,18 @@ export function startPoller(): void {
   }
 
   console.log(`[poller] starting (interval=${INTERVAL_MS}ms)`);
-  const state = { running: false, interval: null as unknown as NodeJS.Timeout };
+  const state = {
+    running: false,
+    skipUntilTick: 0,
+    tickCount: 0,
+    interval: null as unknown as NodeJS.Timeout,
+  };
 
   const run = async () => {
-    if (state.running) return; // skip kalau tick sebelumnya belum kelar
+    if (state.running) return;
     state.running = true;
     try {
-      await tick();
+      await tick(state);
     } catch (e) {
       console.error("[poller] tick error:", e);
     } finally {
@@ -92,6 +112,5 @@ export function startPoller(): void {
   state.interval = setInterval(run, INTERVAL_MS);
   global.__marsPoller = state;
 
-  // Initial tick (delayed sedikit biar gak nubruk app startup)
   setTimeout(run, 5_000);
 }
