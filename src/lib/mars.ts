@@ -419,19 +419,16 @@ class MarsClient {
     };
   }
 
-  async getHistory(page = 1): Promise<HistoryOrder[]> {
-    // Endpoint XHR asli ditznesia. Tanpa limit (param limit malah trigger
-    // ditznesia render HTML page). Pagination via &page=N.
-    const path =
-      page > 1
-        ? `/orderv3?action=infoOrder&page=${page}`
-        : `/orderv3?action=infoOrder`;
+  async getHistory(page = 1, limit = 100): Promise<HistoryOrder[]> {
+    // Endpoint XHR ditznesia. Format param HARUS persis seperti yg dipake web
+    // ditznesia: nomor=&status=&limit=N&page=N&action=infoOrder.
+    // Tanpa kombinasi ini, ditznesia render HTML page bukan JSON.
+    const path = `/orderv3?nomor=&status=&limit=${limit}&page=${page}&action=infoOrder`;
     const res = await this.request({
       method: "GET",
       path,
     });
     if (res.status === 429) {
-      // Rate-limited — throw distinguishable error biar caller bisa back off
       throw new MarsError("Rate limited oleh ditznesia (HTTP 429)", 429);
     }
     if (res.status !== 200) {
@@ -444,7 +441,7 @@ class MarsClient {
     const trimmed = res.body.trimStart();
     if (trimmed.startsWith("<")) {
       throw new MarsError(
-        "Endpoint return HTML, bukan JSON (cek cookies / format URL)",
+        "Endpoint return HTML, bukan JSON (cek cookies)",
         res.status,
         res.body.slice(0, 200)
       );
@@ -466,15 +463,16 @@ class MarsClient {
   }
 
   /**
-   * Multi-page sampai dapet semua row unik. Default 10 page (≈100 row).
+   * Multi-page sampai dapet semua row unik. Default 1 page (limit=100 row),
+   * itu udah cukup untuk hampir semua kasus.
    */
-  async getHistoryAll(maxPages = 10): Promise<HistoryOrder[]> {
+  async getHistoryAll(maxPages = 1, limit = 100): Promise<HistoryOrder[]> {
     const all: HistoryOrder[] = [];
     const seen = new Set<string>();
     for (let p = 1; p <= maxPages; p++) {
       let pageData: HistoryOrder[];
       try {
-        pageData = await this.getHistory(p);
+        pageData = await this.getHistory(p, limit);
       } catch (e) {
         if (p === 1) throw e;
         break;
@@ -488,16 +486,13 @@ class MarsClient {
           newCount++;
         }
       }
-      if (newCount === 0) break; // page baru gak nambah row → endpoint gak support pagination
+      if (newCount === 0) break;
     }
     return all;
   }
 
   async getOrder(orderId: string): Promise<HistoryOrder | null> {
-    // Cuma cek page 1 buat hindari rate limit. Kalau order udah keluar dari
-    // page 1, caller harus fallback ke OrderLog DB (yang udah disinkronin
-    // sama poller).
-    const list = await this.getHistory(1);
+    const list = await this.getHistory(1, 100);
     return list.find((o) => o.order_id === orderId) ?? null;
   }
 }
