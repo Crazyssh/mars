@@ -5,6 +5,10 @@ import { prisma } from "@/lib/prisma";
 
 const CANCEL_MIN_AGE_SEC = 120;
 
+/**
+ * POST /api/v2/order/:id/cancel
+ * id = publicId 8-digit. Internal call mars2.cancelOrder pake orderId raw.
+ */
 export async function POST(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
@@ -15,7 +19,7 @@ export async function POST(
   const { id } = await ctx.params;
 
   const log = await prisma.orderLog.findFirst({
-    where: { orderId: id, userId: auth.user.id, provider: "v2" },
+    where: { publicId: id, userId: auth.user.id, provider: "v2" },
   });
   if (!log) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
@@ -35,13 +39,14 @@ export async function POST(
   }
 
   try {
-    const res = await mars2.cancelOrder(id);
+    // Pakai orderId raw dari provider untuk hit ditznesia
+    const res = await mars2.cancelOrder(log.orderId);
     if (!res.success) {
       return NextResponse.json({ error: "Cancel failed" }, { status: 502 });
     }
     await prisma.orderLog
       .updateMany({
-        where: { orderId: id, outcome: "pending" },
+        where: { id: log.id, outcome: "pending" },
         data: { outcome: "cancelled" },
       })
       .catch(() => undefined);

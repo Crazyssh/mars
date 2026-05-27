@@ -3,6 +3,7 @@ import { z } from "zod";
 import { mars2, parseHarga } from "@/lib/mars2";
 import { requireApiKey } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { generatePublicId } from "@/lib/public-id";
 
 const schema = z.object({
   countryId: z.number().int().min(0),
@@ -14,6 +15,8 @@ const STOCK_ERROR = { error: "Stok habis", code: "OUT_OF_STOCK" };
 /**
  * POST /api/v2/order
  * Body: { countryId, service }
+ *
+ * Return publicId 8-digit ke client (raw provider orderId disembunyikan).
  */
 export async function POST(req: NextRequest) {
   const auth = await requireApiKey(req);
@@ -38,7 +41,6 @@ export async function POST(req: NextRequest) {
 
     const priceIdr = parseHarga(info.harga);
 
-    // Lazy-load countries cache kalau kosong (biar dapet nama negara, bukan id)
     if (mars2.countries.length === 0) {
       await mars2.loadCountries().catch(() => undefined);
     }
@@ -56,11 +58,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(STOCK_ERROR, { status: 409 });
     }
 
+    const publicId = await generatePublicId();
+
     await prisma.orderLog.create({
       data: {
         userId: auth.user.id,
         provider: "v2",
         orderId: result.orderId,
+        publicId,
         service,
         serviceName: info.layanan,
         country: country?.name ?? String(countryId),
@@ -74,7 +79,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       data: {
-        orderId: result.orderId,
+        orderId: publicId, // Expose publicId ke client (bukan raw provider id)
         number: result.number,
         service,
         serviceName: info.layanan,

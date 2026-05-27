@@ -36,7 +36,8 @@ model OrderLog {
   id          String   @id @default(cuid())
   userId      String
   provider    String   @default("v1") // "v1" | "v2"
-  orderId     String   // provider order_id
+  orderId     String   // provider order_id (raw dari ditznesia)
+  publicId    String?  @unique // ID yang ditampilkan ke client API (v2: 8 digit obfuscated)
   service     String   // service code (e.g. "wa")
   serviceName String   // display name
   country     String

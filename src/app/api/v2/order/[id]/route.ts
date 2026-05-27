@@ -7,7 +7,8 @@ import type { HistoryOrder } from "@/lib/mars";
 
 /**
  * GET /api/v2/order/:id
- * DB-only + cache fallback (poller jamin sync max 10s).
+ * id = publicId 8-digit yang dikasih saat POST /order.
+ * Internal pake orderId raw provider untuk match dengan live data.
  */
 export async function GET(
   req: NextRequest,
@@ -18,22 +19,24 @@ export async function GET(
 
   const { id } = await ctx.params;
 
+  // Lookup by publicId (bukan orderId raw)
   const log = await prisma.orderLog.findFirst({
-    where: { orderId: id, userId: auth.user.id, provider: "v2" },
+    where: { publicId: id, userId: auth.user.id, provider: "v2" },
   });
   if (!log) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
   const cached = getCachedValue<HistoryOrder[]>(CACHE_KEYS.V2_HISTORY_PAGE_1);
-  const live = cached?.find((o) => o.order_id === id);
+  // Match dengan orderId asli dari provider
+  const live = cached?.find((o) => o.order_id === log.orderId);
   if (live) {
     await syncOrderFromLive(live).catch(() => undefined);
     const fresh = await prisma.orderLog.findFirst({ where: { id: log.id } });
     const hasOtp = !!live.otp && live.otp !== "Menunggu";
     return NextResponse.json({
       data: {
-        orderId: live.order_id,
+        orderId: log.publicId, // Expose publicId, bukan raw
         number: live.number || fresh?.number || log.number,
         service: log.service,
         serviceName: live.service_name,
@@ -47,7 +50,7 @@ export async function GET(
 
   return NextResponse.json({
     data: {
-      orderId: log.orderId,
+      orderId: log.publicId,
       number: log.number,
       service: log.service,
       serviceName: log.serviceName,
