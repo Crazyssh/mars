@@ -1,5 +1,5 @@
 /**
- * Mars (ditznesia.id) HTTP client untuk web dashboard.
+ * Mars (ditznesia.com) HTTP client untuk web dashboard.
  * Pakai curl subprocess biar TLS fingerprint match Chrome (Node.js https
  * langsung kena Cloudflare WAF).
  */

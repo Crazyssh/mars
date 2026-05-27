@@ -7,7 +7,7 @@ const schema = z.object({
   DATABASE_URL: z.string().default("file:./data/mars.db"),
   MARS_PHPSESSID: z.string().min(1),
   MARS_CF_CLEARANCE: z.string().min(1),
-  MARS_BASE_URL: z.string().url().default("https://ditznesia.id"),
+  MARS_BASE_URL: z.string().url().default("https://ditznesia.com"),
   MARS_USER_AGENT: z
     .string()
     .default(

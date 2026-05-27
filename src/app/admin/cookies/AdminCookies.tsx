@@ -121,9 +121,9 @@ export default function AdminCookies() {
           <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-900 mb-4 space-y-1">
             <p className="font-semibold">Cara dapetin cookies baru:</p>
             <ol className="list-decimal list-inside space-y-0.5">
-              <li>Buka <code>https://ditznesia.id</code> di browser → login</li>
-              <li>F12 → tab <b>Application</b> → <b>Cookies</b> → <code>https://ditznesia.id</code></li>
-              <li>Copy value <code>PHPSESSID</code> dan <code>cf_clearance</code> (domain <code>.ditznesia.id</code>)</li>
+              <li>Buka <code>https://ditznesia.com</code> di browser → login</li>
+              <li>F12 → tab <b>Application</b> → <b>Cookies</b> → <code>https://ditznesia.com</code></li>
+              <li>Copy value <code>PHPSESSID</code> dan <code>cf_clearance</code> (domain <code>.ditznesia.com</code>)</li>
               <li>Paste di form bawah → Save</li>
             </ol>
             <p className="pt-1 italic">
