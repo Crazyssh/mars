@@ -212,7 +212,7 @@ class MarsClient {
     const list = extractCountriesV3(html);
     if (list.length === 0) {
       throw new MarsError(
-        "Gagal parse country list dari /orderv3 — HTML format mungkin berubah",
+        "Gagal parse country list dari provider — HTML format mungkin berubah",
         0
       );
     }
@@ -315,7 +315,7 @@ class MarsClient {
     });
     if (res.status !== 200) {
       throw new MarsError(
-        "Gagal load /orderv3 — kemungkinan session expired",
+        "Gagal load halaman provider — kemungkinan session expired",
         res.status,
         res.body.slice(0, 200)
       );
@@ -455,7 +455,7 @@ class MarsClient {
       path,
     });
     if (res.status === 429) {
-      throw new MarsError("Rate limited oleh ditznesia (HTTP 429)", 429);
+      throw new MarsError("Provider rate limited (HTTP 429)", 429);
     }
     if (res.status !== 200) {
       throw new MarsError(

@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     return NextResponse.json(
       {
-        error: `Cookies disimpan tapi gagal test ke ditznesia: ${(e as Error).message}`,
+        error: `Cookies disimpan tapi gagal test ke provider: ${(e as Error).message}`,
         warning: true,
       },
       { status: 200 } // Tetep 200 — cookies tersimpan, cuma warning
