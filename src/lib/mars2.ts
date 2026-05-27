@@ -200,7 +200,7 @@ class Mars2Client {
     });
     if (res.status !== 200) {
       throw new MarsError(
-        "Gagal load halaman provider v2 — kemungkinan session expired",
+        "Gagal load halaman provider — kemungkinan session expired",
         res.status,
         res.body.slice(0, 200)
       );
@@ -222,7 +222,7 @@ class Mars2Client {
       });
       if (res.status !== 200) {
         throw new MarsError(
-          `Gagal listServices v2 (country ${countryId})`,
+          `Gagal listServices (country ${countryId})`,
           res.status,
           res.body.slice(0, 200)
         );
@@ -230,7 +230,7 @@ class Mars2Client {
       const data = parseJsonSafe<ServicesResponse>(res.body);
       if (!data || typeof data !== "object") {
         throw new MarsError(
-          `Response listServices v2 bukan JSON valid`,
+          `Response listServices bukan JSON valid`,
           res.status,
           res.body.slice(0, 200)
         );
@@ -321,11 +321,11 @@ class Mars2Client {
       path,
     });
     if (res.status === 429) {
-      throw new MarsError("Provider v2 rate limited (HTTP 429)", 429);
+      throw new MarsError("Provider rate limited (HTTP 429)", 429);
     }
     if (res.status !== 200) {
       throw new MarsError(
-        `Gagal ambil history v2 (HTTP ${res.status})`,
+        `Gagal ambil history (HTTP ${res.status})`,
         res.status,
         res.body.slice(0, 300)
       );
@@ -333,7 +333,7 @@ class Mars2Client {
     const trimmed = res.body.trimStart();
     if (trimmed.startsWith("<")) {
       throw new MarsError(
-        "Endpoint v2 return HTML, bukan JSON (cek cookies)",
+        "Endpoint return HTML, bukan JSON (cek cookies)",
         res.status,
         res.body.slice(0, 200)
       );
@@ -347,7 +347,7 @@ class Mars2Client {
     }
     if (!Array.isArray(arr)) {
       throw new MarsError(
-        `Response history v2 bukan array JSON. Body: ${res.body.slice(0, 200)}`,
+        `Response history bukan array JSON. Body: ${res.body.slice(0, 200)}`,
         res.status
       );
     }
