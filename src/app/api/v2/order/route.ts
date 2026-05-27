@@ -37,6 +37,11 @@ export async function POST(req: NextRequest) {
     }
 
     const priceIdr = parseHarga(info.harga);
+
+    // Lazy-load countries cache kalau kosong (biar dapet nama negara, bukan id)
+    if (mars2.countries.length === 0) {
+      await mars2.loadCountries().catch(() => undefined);
+    }
     const country = mars2.findCountry(countryId);
 
     const result = await mars2.createOrder({
