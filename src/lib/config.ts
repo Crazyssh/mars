@@ -5,8 +5,8 @@ const schema = z.object({
     .string()
     .min(32, "SESSION_SECRET min 32 character (generate: openssl rand -base64 48)"),
   DATABASE_URL: z.string().default("file:./data/mars.db"),
-  MARS_PHPSESSID: z.string().min(1),
-  MARS_CF_CLEARANCE: z.string().min(1),
+  MARS_PHPSESSID: z.string().default(""),
+  MARS_CF_CLEARANCE: z.string().default(""),
   MARS_BASE_URL: z.string().url().default("https://ditznesia.com"),
   MARS_USER_AGENT: z
     .string()
