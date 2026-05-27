@@ -9,6 +9,8 @@ const schema = z.object({
   service: z.string().min(1),
 });
 
+const STOCK_ERROR = { error: "Stok habis", code: "OUT_OF_STOCK" };
+
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if (auth.error) return auth.error;
@@ -24,10 +26,7 @@ export async function POST(req: NextRequest) {
     const services = await mars.listServices(countryId);
     const info = services[service];
     if (!info || Number(info.stok) <= 0) {
-      return NextResponse.json(
-        { error: "Service gak available / stok habis" },
-        { status: 409 }
-      );
+      return NextResponse.json(STOCK_ERROR, { status: 409 });
     }
 
     const priceIdr = parseHarga(info.harga);
@@ -43,13 +42,9 @@ export async function POST(req: NextRequest) {
     });
 
     if (!result.success || !result.orderId) {
-      return NextResponse.json(
-        { error: result.errorMessage ?? "Gagal order" },
-        { status: 502 }
-      );
+      return NextResponse.json(STOCK_ERROR, { status: 409 });
     }
 
-    // Log ke DB
     await prisma.orderLog.create({
       data: {
         userId: auth.user.id,
@@ -68,12 +63,10 @@ export async function POST(req: NextRequest) {
         number: result.number,
         serviceName: info.layanan,
         country: country?.name ?? String(countryId),
+        priceIdr,
       },
     });
-  } catch (e) {
-    return NextResponse.json(
-      { error: (e as Error).message },
-      { status: 500 }
-    );
+  } catch {
+    return NextResponse.json(STOCK_ERROR, { status: 409 });
   }
 }

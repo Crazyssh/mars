@@ -1,5 +1,5 @@
 /**
- * Mars (ditznesia.com) HTTP client untuk web dashboard.
+ * Mars HTTP client untuk web dashboard.
  * Pakai curl subprocess biar TLS fingerprint match Chrome (Node.js https
  * langsung kena Cloudflare WAF).
  */
@@ -438,7 +438,7 @@ class MarsClient {
     return this.fetchHistory(page, limit);
   }
 
-  /** Force-fetch ke ditznesia, bypass cache. Dipake oleh poller. */
+  /** Force-fetch ke provider, bypass cache. Dipake oleh poller. */
   async fetchHistoryFresh(page = 1, limit = 100): Promise<HistoryOrder[]> {
     const data = await this.fetchHistory(page, limit);
     if (page === 1 && limit === 100) {

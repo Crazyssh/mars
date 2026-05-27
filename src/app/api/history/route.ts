@@ -12,8 +12,8 @@ export const revalidate = 0;
  * GET /api/history — return riwayat order user yang lagi login.
  *
  * Strategi: baca dari OrderLog DB (poller udah jamin sync max 10s).
- * Kalau ada cached live data dari ditznesia (TTL 7s) yang sama freshness,
- * dipake juga buat sync OTP yang baru — tanpa hit ditznesia.
+ * Kalau ada cached live data dari provider (TTL 7s) yang sama freshness,
+ * dipake juga buat sync OTP yang baru — tanpa hit provider.
  */
 export async function GET() {
   const auth = await requireAuth();
@@ -33,7 +33,7 @@ export async function GET() {
       );
     }
 
-    // Coba dapet live data dari cache memory (gak hit ditznesia).
+    // Coba dapet live data dari cache memory (gak hit provider).
     const cached = getCachedValue<HistoryOrder[]>(CACHE_KEYS.HISTORY_PAGE_1);
     const dzMap = new Map<string, HistoryOrder>();
     if (cached) {

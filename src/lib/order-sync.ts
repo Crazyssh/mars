@@ -1,15 +1,15 @@
 /**
- * Sinkron data live dari ditznesia ke tabel OrderLog.
+ * Sinkron data live dari provider ke tabel OrderLog.
  *
  * - Save OTP value ke kolom `otp` pas pertama kali muncul → gak akan ilang
- *   walaupun ditznesia /infoOrder udah rotate keluar dari page 1.
+ *   walaupun /infoOrder provider udah rotate keluar dari page 1.
  * - Update `outcome` & `status` sesuai status terkini.
  * - Idempotent: aman dipanggil berkali-kali.
  */
 import { prisma } from "./prisma";
 import type { HistoryOrder } from "./mars";
 
-// OTP order ditznesia biasanya hidup ~20 menit. Setelah itu:
+// OTP order provider biasanya hidup ~20 menit. Setelah itu:
 //   - Live status mestinya jadi "TIME OUT".
 //   - Tapi kalau live response lambat sync atau format status beda,
 //     fallback ke umur biar gak stuck PENDING.
@@ -36,7 +36,7 @@ export async function syncOrderFromLive(live: HistoryOrder): Promise<boolean> {
   let nextOutcome = classifyStatus(live.status ?? "", hasOtp);
 
   // Fallback: live status masih PENDING tapi udah lewat lifetime → anggap expired.
-  // (Ditznesia kadang lambat update status ke TIME OUT.)
+  // (Provider kadang lambat update status ke TIME OUT.)
   if (!nextOutcome && live.order_time) {
     const age = Math.floor(Date.now() / 1000) - live.order_time;
     if (age > ORDER_LIFETIME_SEC) {
@@ -84,7 +84,7 @@ export async function syncOrderFromLive(live: HistoryOrder): Promise<boolean> {
 }
 
 /**
- * Map outcome internal → status display ala ditznesia.
+ * Map outcome internal → status display ala provider.
  */
 export function outcomeToStatus(outcome: string): string {
   switch (outcome) {

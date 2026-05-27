@@ -4,7 +4,7 @@ import { requireApiKey } from "@/lib/api-auth";
 
 /**
  * GET /api/v1/countries?q=indo
- * Return list negara yang tersedia di ditznesia.
+ * Return list negara yang tersedia.
  */
 export async function GET(req: NextRequest) {
   const auth = await requireApiKey(req);

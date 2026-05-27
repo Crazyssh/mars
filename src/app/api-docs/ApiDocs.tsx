@@ -213,7 +213,7 @@ export default function ApiDocs({ userName }: { userName: string }) {
           <Endpoint
             method="POST"
             path="/order"
-            desc="Buat order baru. Return orderId + nomor virtual."
+            desc="Buat order baru. Return orderId + nomor virtual. Kalau gagal (stok habis / provider error), return 409 dengan code OUT_OF_STOCK."
             example={`curl -X POST \\
   -H "Authorization: Bearer ${exampleKey}" \\
   -H "Content-Type: application/json" \\
@@ -231,6 +231,12 @@ export default function ApiDocs({ userName }: { userName: string }) {
     "status": "PENDING",
     "otp": null
   }
+}
+
+// Atau kalau gagal:
+{
+  "error": "Stok habis",
+  "code": "OUT_OF_STOCK"
 }`}
           />
 
@@ -305,8 +311,8 @@ export default function ApiDocs({ userName }: { userName: string }) {
               <Status v="400" desc="Body / query invalid. Cek field `error`." />
               <Status v="401" desc="Missing / invalid API key." />
               <Status v="404" desc="Order ID gak ditemukan / bukan punya kamu." />
-              <Status v="409" desc="Service out of stock / unavailable." />
-              <Status v="502" desc="Provider (ditznesia) error / cookies expired. Hubungi admin." />
+              <Status v="409" desc="Stok habis (untuk POST /order: termasuk error provider, cookies expired, rate limit — semua di-return sebagai stok habis)." />
+              <Status v="502" desc="Provider error / cookies expired (selain endpoint /order). Hubungi admin." />
               <Status v="500" desc="Internal error." />
             </tbody>
           </table>

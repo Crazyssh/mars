@@ -121,9 +121,9 @@ export default function AdminCookies() {
           <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-900 mb-4 space-y-1">
             <p className="font-semibold">Cara dapetin cookies baru:</p>
             <ol className="list-decimal list-inside space-y-0.5">
-              <li>Buka <code>https://ditznesia.com</code> di browser → login</li>
-              <li>F12 → tab <b>Application</b> → <b>Cookies</b> → <code>https://ditznesia.com</code></li>
-              <li>Copy value <code>PHPSESSID</code> dan <code>cf_clearance</code> (domain <code>.ditznesia.com</code>)</li>
+              <li>Buka situs provider di browser → login</li>
+              <li>F12 → tab <b>Application</b> → <b>Cookies</b> → pilih domain provider</li>
+              <li>Copy value <code>PHPSESSID</code> dan <code>cf_clearance</code></li>
               <li>Paste di form bawah → Save</li>
             </ol>
             <p className="pt-1 italic">
@@ -187,9 +187,9 @@ export default function AdminCookies() {
 
         {/* Info */}
         <section className="card text-xs text-slate-600 space-y-2">
-          <h3 className="font-semibold text-slate-900">ℹ️ Tentang Cookies Mars</h3>
+          <h3 className="font-semibold text-slate-900">ℹ️ Tentang Cookies</h3>
           <p>
-            <b>PHPSESSID</b>: token session ditznesia. Idle timeout ~24 jam — selama bot
+            <b>PHPSESSID</b>: token session provider. Idle timeout ~24 jam — selama bot
             aktif dipake (auto keep-alive setiap 5 menit), gak akan expired.
           </p>
           <p>

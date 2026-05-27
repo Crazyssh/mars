@@ -1,9 +1,9 @@
 /**
- * Background poller — sinkron pending orders dengan ditznesia tiap interval.
+ * Background poller — sinkron pending orders dengan provider tiap interval.
  *
  * Strategi:
  * - Tick base 10 detik (dynamic), pake fetchHistoryFresh (update cache memory)
- * - Adaptive idle: kalau gak ada pending order > 5 menit, skip tick (gak hit ditznesia)
+ * - Adaptive idle: kalau gak ada pending order > 5 menit, skip tick (gak hit provider)
  * - 429 backoff: 7 tick (~70 detik)
  *
  * Dijalanin sekali via instrumentation.ts.
@@ -45,7 +45,7 @@ async function tick(state: {
   });
 
   if (pending.length === 0) {
-    // Kalau gak ada pending > 5 menit, skip tick supaya ditznesia idle.
+    // Kalau gak ada pending > 5 menit, skip tick supaya provider idle.
     // tetap update lastPendingAt = 0 untuk reset.
     return;
   }
@@ -53,9 +53,9 @@ async function tick(state: {
 
   let live: Awaited<ReturnType<typeof mars.fetchHistoryFresh>> = [];
   try {
-    // fetchHistoryFresh hit ditznesia + update cache. Cache TTL 7s,
+    // fetchHistoryFresh hit provider + update cache. Cache TTL 7s,
     // jadi semua endpoint /api/history & /api/order/:id yang call dalam
-    // window itu baca dari cache (gak hit ditznesia).
+    // window itu baca dari cache (gak hit provider).
     live = await mars.fetchHistoryFresh(1, 100);
   } catch (e) {
     if (e instanceof MarsError && e.statusCode === 429) {

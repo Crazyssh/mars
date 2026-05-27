@@ -265,7 +265,7 @@ export default function Dashboard({ user }: { user: User }) {
         lastErr = res.error ?? "";
       }
       setBulkProgress({ done: i + 1, total: count });
-      // Jeda kecil biar gak ke-rate-limit ditznesia
+      // Jeda kecil biar gak ke-rate-limit provider
       if (i < count - 1) await new Promise((r) => setTimeout(r, 500));
     }
     setBulkProgress(null);

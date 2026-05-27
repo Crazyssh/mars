@@ -1,9 +1,9 @@
 /**
- * In-memory TTL cache untuk hasil panggilan ke ditznesia.
+ * In-memory TTL cache untuk hasil panggilan ke provider.
  *
- * Tujuan: kurangin request ke ditznesia (rate limit cloudflare).
+ * Tujuan: kurangin request ke provider (rate limit cloudflare).
  * Multiple call ke `mars.getHistory()` atau `mars.listServices(N)` dalam
- * window TTL bakal pake cache, gak hit ditznesia.
+ * window TTL bakal pake cache, gak hit provider.
  */
 
 interface CacheEntry<T> {

@@ -10,7 +10,7 @@ import type { HistoryOrder } from "@/lib/mars";
  *
  * Strategi:
  * - Baca DB (yang udah di-sync sama poller tiap 10s)
- * - Kalau ada cached live data dari ditznesia (TTL 7s), pake juga (gak hit ditznesia)
+ * - Kalau ada cached live data dari provider (TTL 7s), pake juga (gak hit provider)
  */
 export async function GET(
   _req: NextRequest,
