@@ -84,6 +84,8 @@ export function getCachedValue<T>(key: string): T | null {
 
 // Cache keys
 export const CACHE_KEYS = {
-  HISTORY_PAGE_1: "ditz:history:p1",
-  SERVICES: (countryId: number) => `ditz:services:${countryId}`,
+  HISTORY_PAGE_1: "ditz:v1:history:p1",
+  SERVICES: (countryId: number) => `ditz:v1:services:${countryId}`,
+  V2_HISTORY_PAGE_1: "ditz:v2:history:p1",
+  V2_SERVICES: (countryId: number) => `ditz:v2:services:${countryId}`,
 } as const;

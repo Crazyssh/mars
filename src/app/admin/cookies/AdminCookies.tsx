@@ -3,19 +3,35 @@
 import { useCallback, useEffect, useState } from "react";
 
 interface CookiesInfo {
-  phpsessid: string; // masked
-  cfClearance: string; // masked
-  phpsessidLen: number;
-  cfClearanceLen: number;
+  v1: {
+    phpsessid: string;
+    cfClearance: string;
+    phpsessidLen: number;
+    cfClearanceLen: number;
+  };
+  v2: {
+    phpsessid: string;
+    userId: string;
+    expiresAt: string;
+    phpsessidLen: number;
+  };
 }
 
 export default function AdminCookies() {
   const [info, setInfo] = useState<CookiesInfo | null>(null);
   const [loading, setLoading] = useState(true);
-  const [phpsessid, setPhpsessid] = useState("");
-  const [cfClearance, setCfClearance] = useState("");
-  const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err" | "warn"; text: string } | null>(null);
+
+  // V1 form
+  const [v1Phpsessid, setV1Phpsessid] = useState("");
+  const [v1CfClearance, setV1CfClearance] = useState("");
+  const [v1Saving, setV1Saving] = useState(false);
+
+  // V2 form
+  const [v2Phpsessid, setV2Phpsessid] = useState("");
+  const [v2UserId, setV2UserId] = useState("");
+  const [v2ExpiresAt, setV2ExpiresAt] = useState("");
+  const [v2Saving, setV2Saving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -32,39 +48,73 @@ export default function AdminCookies() {
     load();
   }, [load]);
 
-  async function save(e: React.FormEvent) {
+  async function saveV1(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
+    setV1Saving(true);
     setMsg(null);
     try {
       const res = await fetch("/api/admin/cookies", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          phpsessid: phpsessid.trim(),
-          cfClearance: cfClearance.trim(),
+          provider: "v1",
+          phpsessid: v1Phpsessid.trim(),
+          cfClearance: v1CfClearance.trim(),
         }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setMsg({ type: "err", text: data.error ?? "Gagal save" });
+        setMsg({ type: "err", text: data.error ?? "Gagal save V1" });
         return;
       }
       if (data.warning) {
         setMsg({ type: "warn", text: data.error });
       } else {
-        setMsg({
-          type: "ok",
-          text: "✅ Cookies updated! Live tanpa restart server.",
-        });
+        setMsg({ type: "ok", text: "✅ V1 cookies updated!" });
       }
-      setPhpsessid("");
-      setCfClearance("");
+      setV1Phpsessid("");
+      setV1CfClearance("");
       load();
     } catch {
       setMsg({ type: "err", text: "Network error" });
     } finally {
-      setSaving(false);
+      setV1Saving(false);
+    }
+  }
+
+  async function saveV2(e: React.FormEvent) {
+    e.preventDefault();
+    setV2Saving(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/admin/cookies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: "v2",
+          phpsessid: v2Phpsessid.trim(),
+          userId: v2UserId.trim(),
+          expiresAt: v2ExpiresAt.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMsg({ type: "err", text: data.error ?? "Gagal save V2" });
+        return;
+      }
+      if (data.warning) {
+        setMsg({ type: "warn", text: data.error });
+      } else {
+        setMsg({ type: "ok", text: "✅ V2 cookies updated!" });
+      }
+      setV2Phpsessid("");
+      setV2UserId("");
+      setV2ExpiresAt("");
+      load();
+    } catch {
+      setMsg({ type: "err", text: "Network error" });
+    } finally {
+      setV2Saving(false);
     }
   }
 
@@ -88,114 +138,161 @@ export default function AdminCookies() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-        {/* Current state */}
-        <section className="card">
-          <h2 className="font-semibold mb-3">📦 Cookies Aktif</h2>
+        {msg && (
+          <div
+            className={`rounded-lg p-3 text-sm border ${
+              msg.type === "ok"
+                ? "bg-green-50 border-green-200 text-green-800"
+                : msg.type === "warn"
+                  ? "bg-yellow-50 border-yellow-200 text-yellow-800"
+                  : "bg-red-50 border-red-200 text-red-700"
+            }`}
+          >
+            {msg.text}
+          </div>
+        )}
+
+        {/* V1 Section */}
+        <section className="card space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold">📦 Provider V1 (orderv3)</h2>
+            <span className="text-xs text-slate-500">PHPSESSID + cf_clearance</span>
+          </div>
+
           {loading ? (
             <p className="text-xs text-slate-500">Loading...</p>
           ) : !info ? (
             <p className="text-xs text-slate-500">Gagal load.</p>
           ) : (
-            <dl className="space-y-2 text-sm">
+            <dl className="space-y-1 text-sm">
               <div className="flex justify-between">
                 <dt className="text-slate-500">PHPSESSID</dt>
                 <dd className="font-mono text-xs">
-                  {info.phpsessid}{" "}
-                  <span className="text-slate-400">({info.phpsessidLen} chars)</span>
+                  {info.v1.phpsessid}{" "}
+                  <span className="text-slate-400">({info.v1.phpsessidLen})</span>
                 </dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-slate-500">cf_clearance</dt>
                 <dd className="font-mono text-xs">
-                  {info.cfClearance}{" "}
-                  <span className="text-slate-400">({info.cfClearanceLen} chars)</span>
+                  {info.v1.cfClearance}{" "}
+                  <span className="text-slate-400">({info.v1.cfClearanceLen})</span>
                 </dd>
               </div>
             </dl>
           )}
-        </section>
 
-        {/* Update form */}
-        <section className="card">
-          <h2 className="font-semibold mb-3">🔄 Update Cookies</h2>
-          <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-900 mb-4 space-y-1">
-            <p className="font-semibold">Cara dapetin cookies baru:</p>
-            <ol className="list-decimal list-inside space-y-0.5">
-              <li>Buka situs provider di browser → login</li>
-              <li>F12 → tab <b>Application</b> → <b>Cookies</b> → pilih domain provider</li>
-              <li>Copy value <code>PHPSESSID</code> dan <code>cf_clearance</code></li>
-              <li>Paste di form bawah → Save</li>
-            </ol>
-            <p className="pt-1 italic">
-              Cookies tersimpan di DB, langsung apply tanpa restart server.
-            </p>
-          </div>
-
-          <form onSubmit={save} className="space-y-3">
-            <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1">
-                PHPSESSID
-              </label>
-              <input
-                type="text"
-                required
-                value={phpsessid}
-                onChange={(e) => setPhpsessid(e.target.value)}
-                className="input font-mono text-xs"
-                placeholder="abc123..."
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1">
-                cf_clearance{" "}
-                <span className="text-slate-400 font-normal">
-                  (FULL string, biasanya 200+ karakter)
-                </span>
-              </label>
-              <textarea
-                required
-                value={cfClearance}
-                onChange={(e) => setCfClearance(e.target.value)}
-                className="input font-mono text-xs min-h-[100px]"
-                placeholder="ZyiFKI1nyR.o28d2SM0fRSpUx...-1779565941-1.2.1.1-..."
-              />
-            </div>
-
-            {msg && (
-              <div
-                className={`rounded-lg p-3 text-sm border ${
-                  msg.type === "ok"
-                    ? "bg-green-50 border-green-200 text-green-800"
-                    : msg.type === "warn"
-                      ? "bg-yellow-50 border-yellow-200 text-yellow-800"
-                      : "bg-red-50 border-red-200 text-red-700"
-                }`}
-              >
-                {msg.text}
-              </div>
-            )}
-
+          <form onSubmit={saveV1} className="space-y-2 border-t pt-3">
+            <input
+              type="text"
+              placeholder="PHPSESSID baru"
+              value={v1Phpsessid}
+              onChange={(e) => setV1Phpsessid(e.target.value)}
+              className="input font-mono text-xs"
+            />
+            <textarea
+              placeholder="cf_clearance baru (FULL string, 200+ char)"
+              value={v1CfClearance}
+              onChange={(e) => setV1CfClearance(e.target.value)}
+              className="input font-mono text-xs min-h-[80px]"
+            />
             <button
               type="submit"
-              disabled={saving || !phpsessid || !cfClearance}
-              className="btn btn-primary"
+              disabled={v1Saving || !v1Phpsessid || !v1CfClearance}
+              className="btn btn-primary text-sm"
             >
-              {saving ? "Saving..." : "Save & Test"}
+              {v1Saving ? "Saving..." : "Save V1 & Test"}
             </button>
           </form>
         </section>
 
-        {/* Info */}
+        {/* V2 Section */}
+        <section className="card space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold">🔄 Provider V2 (orderv2)</h2>
+            <span className="text-xs text-slate-500">
+              PHPSESSID + user_id + expires_at
+            </span>
+          </div>
+
+          {loading ? (
+            <p className="text-xs text-slate-500">Loading...</p>
+          ) : !info ? (
+            <p className="text-xs text-slate-500">Gagal load.</p>
+          ) : (
+            <dl className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <dt className="text-slate-500">PHPSESSID</dt>
+                <dd className="font-mono text-xs">
+                  {info.v2.phpsessid}{" "}
+                  <span className="text-slate-400">({info.v2.phpsessidLen})</span>
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-slate-500">user_id</dt>
+                <dd className="font-mono text-xs">{info.v2.userId}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-slate-500">expires_at</dt>
+                <dd className="font-mono text-xs">
+                  {info.v2.expiresAt}
+                  {info.v2.expiresAt !== "(empty)" && (
+                    <span className="text-slate-400 ml-1">
+                      ({new Date(Number(info.v2.expiresAt) * 1000).toLocaleDateString("id-ID")})
+                    </span>
+                  )}
+                </dd>
+              </div>
+            </dl>
+          )}
+
+          <form onSubmit={saveV2} className="space-y-2 border-t pt-3">
+            <input
+              type="text"
+              placeholder="PHPSESSID baru"
+              value={v2Phpsessid}
+              onChange={(e) => setV2Phpsessid(e.target.value)}
+              className="input font-mono text-xs"
+            />
+            <input
+              type="text"
+              placeholder="user_id (mis. 156279)"
+              value={v2UserId}
+              onChange={(e) => setV2UserId(e.target.value)}
+              className="input font-mono text-xs"
+            />
+            <input
+              type="text"
+              placeholder="expires_at (unix timestamp, mis. 1780467200)"
+              value={v2ExpiresAt}
+              onChange={(e) => setV2ExpiresAt(e.target.value)}
+              className="input font-mono text-xs"
+            />
+            <button
+              type="submit"
+              disabled={
+                v2Saving || !v2Phpsessid || !v2UserId || !v2ExpiresAt
+              }
+              className="btn btn-primary text-sm"
+            >
+              {v2Saving ? "Saving..." : "Save V2 & Test"}
+            </button>
+          </form>
+        </section>
+
+        {/* Cara dapetin */}
         <section className="card text-xs text-slate-600 space-y-2">
-          <h3 className="font-semibold text-slate-900">ℹ️ Tentang Cookies</h3>
-          <p>
-            <b>PHPSESSID</b>: token session provider. Idle timeout ~24 jam — selama bot
-            aktif dipake (auto keep-alive setiap 5 menit), gak akan expired.
-          </p>
-          <p>
-            <b>cf_clearance</b>: Cloudflare bot-detection token. Auto-expired ~24-48 jam.
-            Perlu refresh manual lewat browser (lewat page ini), Cloudflare gak bisa
-            di-bypass programmatically.
+          <h3 className="font-semibold text-slate-900">ℹ️ Cara dapetin cookies</h3>
+          <ol className="list-decimal list-inside space-y-1">
+            <li>Login ke situs provider di browser</li>
+            <li>F12 → tab <b>Application</b> → <b>Cookies</b></li>
+            <li>Untuk V1 (orderv3): copy <code>PHPSESSID</code> + <code>cf_clearance</code></li>
+            <li>Untuk V2 (orderv2): copy <code>PHPSESSID</code> + <code>user_id</code> + <code>expires_at</code></li>
+            <li>Paste ke form di atas → Save</li>
+          </ol>
+          <p className="pt-2 italic text-slate-500">
+            Cookies tersimpan di DB, langsung apply tanpa restart server. V1 &amp;
+            V2 simpan terpisah — update salah satu gak ganggu yang lain.
           </p>
         </section>
       </main>

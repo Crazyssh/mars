@@ -167,8 +167,14 @@ export default function ApiDocs({ userName }: { userName: string }) {
 
           <div className="rounded-lg bg-slate-900 text-slate-100 p-3 text-xs space-y-1">
             <div>
-              <span className="text-blue-400">Base URL:</span>{" "}
+              <span className="text-blue-400">Base URLs:</span>{" "}
               <code className="text-amber-300">{baseUrl}/api/v1</code>
+              {" / "}
+              <code className="text-amber-300">{baseUrl}/api/v2</code>
+            </div>
+            <div className="text-slate-300">
+              V1 dan V2 punya provider terpisah. Endpoint &amp; auth sama persis,
+              tinggal ganti <code>/v1</code> ↔ <code>/v2</code>.
             </div>
             <div>
               <span className="text-blue-400">Auth:</span> header{" "}

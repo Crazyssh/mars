@@ -1,16 +1,15 @@
 /**
  * Background poller — sinkron pending orders dengan provider tiap interval.
  *
- * Strategi:
- * - Tick base 10 detik (dynamic), pake fetchHistoryFresh (update cache memory)
- * - Adaptive idle: kalau gak ada pending order > 5 menit, skip tick (gak hit provider)
- * - 429 backoff: 7 tick (~70 detik)
- *
- * Dijalanin sekali via instrumentation.ts.
+ * Sekarang handle 2 provider: v1 (mars) & v2 (mars2).
+ * Tiap tick: query DB pending order, group by provider, fetch live data dari
+ * provider yang sesuai, sync ke DB.
  */
 import { mars, MarsError } from "./mars";
+import { mars2 } from "./mars2";
 import { prisma } from "./prisma";
 import { syncOrderFromLive } from "./order-sync";
+import type { HistoryOrder } from "./mars";
 
 const INTERVAL_MS = 10_000;
 const PENDING_TIMEOUT_MS = 22 * 60 * 1000;
@@ -22,56 +21,42 @@ declare global {
     | {
         interval: NodeJS.Timeout;
         running: boolean;
-        skipUntilTick: number;
+        skipUntilTickV1: number;
+        skipUntilTickV2: number;
         tickCount: number;
-        lastPendingAt: number;
       }
     | undefined;
 }
 
-async function tick(state: {
-  skipUntilTick: number;
-  tickCount: number;
-  lastPendingAt: number;
-}): Promise<void> {
-  state.tickCount++;
-  if (state.tickCount < state.skipUntilTick) {
-    return; // back-off mode, skip
-  }
-
-  const pending = await prisma.orderLog.findMany({
-    where: { outcome: "pending" },
-    select: { id: true, orderId: true, createdAt: true },
-  });
-
-  if (pending.length === 0) {
-    // Kalau gak ada pending > 5 menit, skip tick supaya provider idle.
-    // tetap update lastPendingAt = 0 untuk reset.
-    return;
-  }
-  state.lastPendingAt = Date.now();
-
-  let live: Awaited<ReturnType<typeof mars.fetchHistoryFresh>> = [];
+async function fetchProviderHistory(
+  provider: "v1" | "v2"
+): Promise<HistoryOrder[] | null> {
   try {
-    // fetchHistoryFresh hit provider + update cache. Cache TTL 7s,
-    // jadi semua endpoint /api/history & /api/order/:id yang call dalam
-    // window itu baca dari cache (gak hit provider).
-    live = await mars.fetchHistoryFresh(1, 100);
+    if (provider === "v1") {
+      return await mars.fetchHistoryFresh(1, 100);
+    }
+    return await mars2.fetchHistoryFresh(1, 100);
   } catch (e) {
     if (e instanceof MarsError && e.statusCode === 429) {
-      state.skipUntilTick = state.tickCount + SKIP_TICKS_ON_429;
-      console.warn(
-        `[poller] rate-limited (429), back off ${SKIP_TICKS_ON_429} ticks (~${
-          (SKIP_TICKS_ON_429 * INTERVAL_MS) / 1000
-        }s)`
-      );
-      return;
+      return null; // signal back-off
     }
-    console.warn("[poller] fetch failed:", (e as Error).message);
-    return;
+    console.warn(`[poller] ${provider} fetch failed:`, (e as Error).message);
+    return [];
   }
-  const liveMap = new Map(live.map((o) => [o.order_id, o]));
+}
 
+async function syncProvider(
+  provider: "v1" | "v2",
+  pending: { id: string; orderId: string; createdAt: Date }[]
+): Promise<{ updated: number; rateLimited: boolean }> {
+  if (pending.length === 0) return { updated: 0, rateLimited: false };
+
+  const live = await fetchProviderHistory(provider);
+  if (live === null) {
+    return { updated: 0, rateLimited: true };
+  }
+
+  const liveMap = new Map(live.map((o) => [o.order_id, o]));
   let updated = 0;
   for (const p of pending) {
     const data = liveMap.get(p.orderId);
@@ -91,10 +76,58 @@ async function tick(state: {
       }
     }
   }
+  return { updated, rateLimited: false };
+}
 
-  if (updated > 0) {
-    console.log(`[poller] synced ${updated}/${pending.length} pending orders`);
+async function tick(state: {
+  skipUntilTickV1: number;
+  skipUntilTickV2: number;
+  tickCount: number;
+}): Promise<void> {
+  state.tickCount++;
+
+  const allPending = await prisma.orderLog.findMany({
+    where: { outcome: "pending" },
+    select: { id: true, orderId: true, createdAt: true, provider: true },
+  });
+
+  if (allPending.length === 0) return;
+
+  const v1Pending = allPending.filter((p) => p.provider === "v1");
+  const v2Pending = allPending.filter((p) => p.provider === "v2");
+
+  const tasks: Promise<void>[] = [];
+
+  if (v1Pending.length > 0 && state.tickCount >= state.skipUntilTickV1) {
+    tasks.push(
+      syncProvider("v1", v1Pending).then((r) => {
+        if (r.rateLimited) {
+          state.skipUntilTickV1 = state.tickCount + SKIP_TICKS_ON_429;
+          console.warn(
+            `[poller] v1 rate-limited, back off ${SKIP_TICKS_ON_429} ticks`
+          );
+        } else if (r.updated > 0) {
+          console.log(`[poller] v1 synced ${r.updated}/${v1Pending.length}`);
+        }
+      })
+    );
   }
+  if (v2Pending.length > 0 && state.tickCount >= state.skipUntilTickV2) {
+    tasks.push(
+      syncProvider("v2", v2Pending).then((r) => {
+        if (r.rateLimited) {
+          state.skipUntilTickV2 = state.tickCount + SKIP_TICKS_ON_429;
+          console.warn(
+            `[poller] v2 rate-limited, back off ${SKIP_TICKS_ON_429} ticks`
+          );
+        } else if (r.updated > 0) {
+          console.log(`[poller] v2 synced ${r.updated}/${v2Pending.length}`);
+        }
+      })
+    );
+  }
+
+  await Promise.all(tasks);
 }
 
 export function startPoller(): void {
@@ -103,12 +136,12 @@ export function startPoller(): void {
     return;
   }
 
-  console.log(`[poller] starting (interval=${INTERVAL_MS}ms)`);
+  console.log(`[poller] starting (interval=${INTERVAL_MS}ms, providers=v1+v2)`);
   const state = {
     running: false,
-    skipUntilTick: 0,
+    skipUntilTickV1: 0,
+    skipUntilTickV2: 0,
     tickCount: 0,
-    lastPendingAt: 0,
     interval: null as unknown as NodeJS.Timeout,
   };
 

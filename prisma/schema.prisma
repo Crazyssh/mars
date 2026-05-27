@@ -35,20 +35,25 @@ model Setting {
 model OrderLog {
   id          String   @id @default(cuid())
   userId      String
-  orderId     String   // ditznesia order_id
+  provider    String   @default("v1") // "v1" | "v2"
+  orderId     String   // provider order_id
   service     String   // service code (e.g. "wa")
   serviceName String   // display name
   country     String
+  countryId   Int?     // provider country id
   number      String
+  costIdr     Int?     // harga provider saat order dibuat
+  priceIdr    Int?     // harga jual ke user
   outcome     String   // "otp_received" | "expired" | "cancelled" | "timeout" | "pending"
   otp         String?  // OTP text saat outcome=otp_received
   otpAt       DateTime?
-  status      String?  // raw status dari ditznesia (PENDING/Sukses/TIME OUT/Dibatalkan)
+  status      String?  // raw status dari provider (PENDING/Sukses/TIME OUT/Dibatalkan)
   createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([createdAt])
+  @@index([provider])
   @@map("order_logs")
 }
