@@ -19,7 +19,10 @@ export async function GET(req: NextRequest) {
 
   try {
     const response = await mars2.listServices(countryId);
-    const data = flattenServices(response, q);
+    const data = flattenServices(response, q).map((s) => ({
+      ...s,
+      stock: s.stock * 4, // Multiplier display untuk v2 (gak ubah validasi internal)
+    }));
     return NextResponse.json({ data, total: data.length });
   } catch (e) {
     return NextResponse.json(
