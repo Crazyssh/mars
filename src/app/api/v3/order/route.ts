@@ -90,6 +90,7 @@ export async function POST(req: NextRequest) {
     }
 
     const publicId = await generatePublicId();
+    const displayPrice = Math.round(priceIdr * 0.6); // Diskon 40% untuk client display
 
     await prisma.orderLog.create({
       data: {
@@ -97,13 +98,13 @@ export async function POST(req: NextRequest) {
         provider: "v3",
         orderId: result.orderId,
         publicId,
-        service: serviceWithOperator, // simpan dengan operator biar reproducible
+        service: serviceWithOperator,
         serviceName: serviceCode,
         country: countryName,
         countryId: countryIdNumeric,
         number: result.number ?? "",
-        costIdr: priceIdr,
-        priceIdr,
+        costIdr: priceIdr, // harga asli ke provider (yang dipotong saldo)
+        priceIdr: displayPrice, // harga jual ke user (yang ditagih)
         outcome: "pending",
       },
     });
@@ -116,7 +117,7 @@ export async function POST(req: NextRequest) {
         serviceName: serviceCode,
         country: countryName,
         countryId: countryIdNumeric,
-        priceIdr,
+        priceIdr: displayPrice,
         status: "PENDING",
         otp: null,
       },

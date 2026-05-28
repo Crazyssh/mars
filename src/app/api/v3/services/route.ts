@@ -46,6 +46,7 @@ export async function GET(req: NextRequest) {
     const response = await mars3.listServices(countrySlug);
     const data = flattenV3Services(response, q).map((s) => ({
       ...s,
+      priceIdr: Math.round(s.priceIdr * 0.6), // Diskon 40% display
       stock: s.stock * 2, // multiplier display
     }));
     return NextResponse.json({ data, total: data.length });
