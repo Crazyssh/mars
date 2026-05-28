@@ -161,25 +161,19 @@ export default function ApiDocs({ userName }: { userName: string }) {
           )}
         </section>
 
-        {/* Endpoints */}
-        <section className="card space-y-4">
-          <h2 className="font-semibold">📚 Endpoints</h2>
-
+        {/* Auth + base URL info */}
+        <section className="card">
+          <h2 className="font-semibold mb-3">🔐 Auth &amp; Base URL</h2>
           <div className="rounded-lg bg-slate-900 text-slate-100 p-3 text-xs space-y-1">
             <div>
-              <span className="text-blue-400">Base URLs:</span>{" "}
-              <code className="text-amber-300">{baseUrl}/api/v1</code>
-              {" / "}
-              <code className="text-amber-300">{baseUrl}/api/v2</code>
-              {" / "}
-              <code className="text-amber-300">{baseUrl}/api/v3</code>
-              {" / "}
-              <code className="text-amber-300">{baseUrl}/api/v4</code>
+              <span className="text-blue-400">Base URL:</span>{" "}
+              <code className="text-amber-300">{baseUrl}/api/&lt;version&gt;</code>
             </div>
             <div className="text-slate-300">
-              4 provider terpisah. Endpoint &amp; auth sama, tinggal ganti version di URL.
+              Version: <code>v1</code>, <code>v2</code>, <code>v3</code>,{" "}
+              <code>v4</code>
             </div>
-            <div>
+            <div className="pt-1">
               <span className="text-blue-400">Auth:</span> header{" "}
               <code className="text-amber-300">
                 Authorization: Bearer {exampleKey}
@@ -189,17 +183,87 @@ export default function ApiDocs({ userName }: { userName: string }) {
               Atau pakai <code>X-API-Key: {exampleKey}</code>
             </div>
           </div>
+        </section>
+
+        {/* Provider comparison table */}
+        <section className="card">
+          <h2 className="font-semibold mb-3">📋 Perbandingan Provider</h2>
+          <p className="text-xs text-slate-600 mb-3">
+            Endpoint &amp; auth sama, tinggal ganti version di URL. Tapi format
+            param ada beberapa perbedaan kecil:
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="text-[10px] uppercase text-slate-500 border-b">
+                <tr>
+                  <th className="text-left py-2 pr-3">Provider</th>
+                  <th className="text-left py-2 pr-3">Country param</th>
+                  <th className="text-left py-2 pr-3">Service code</th>
+                  <th className="text-left py-2 pr-3">Cancel min age</th>
+                  <th className="text-left py-2 pr-3">Catatan</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b">
+                  <td className="py-2 pr-3 font-mono font-bold">v1</td>
+                  <td className="py-2 pr-3 font-mono">id (mis. 6)</td>
+                  <td className="py-2 pr-3 font-mono">code (mis. wa)</td>
+                  <td className="py-2 pr-3">2 menit</td>
+                  <td className="py-2 pr-3 text-slate-600">orderId raw provider</td>
+                </tr>
+                <tr className="border-b">
+                  <td className="py-2 pr-3 font-mono font-bold">v2</td>
+                  <td className="py-2 pr-3 font-mono">id (mis. 6)</td>
+                  <td className="py-2 pr-3 font-mono">code (mis. wa)</td>
+                  <td className="py-2 pr-3">2 menit</td>
+                  <td className="py-2 pr-3 text-slate-600">orderId obfuscated 8-digit</td>
+                </tr>
+                <tr className="border-b">
+                  <td className="py-2 pr-3 font-mono font-bold">v3</td>
+                  <td className="py-2 pr-3 font-mono">slug (mis. indonesia)</td>
+                  <td className="py-2 pr-3 font-mono">code:operator</td>
+                  <td className="py-2 pr-3">5 detik</td>
+                  <td className="py-2 pr-3 text-slate-600">multi-operator, harga didiskon 40%</td>
+                </tr>
+                <tr>
+                  <td className="py-2 pr-3 font-mono font-bold">v4</td>
+                  <td className="py-2 pr-3 font-mono">id (mis. 6)</td>
+                  <td className="py-2 pr-3 font-mono">code:operator</td>
+                  <td className="py-2 pr-3">5 detik</td>
+                  <td className="py-2 pr-3 text-slate-600">
+                    operator harga sama di-merge, server random-pick saat order, harga diskon 40%
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-3 text-xs text-slate-500 space-y-1">
+            <p>
+              <b>Recommendation:</b> kalau lo mau code yang reusable lintas provider,
+              pakai{" "}
+              <code className="bg-slate-100 px-1 rounded">{baseUrl}/api/vN/...</code>{" "}
+              dengan flag konfigurasi untuk version. Format request/response konsisten.
+            </p>
+          </div>
+        </section>
+
+        {/* V1/V2: simple endpoints */}
+        <section className="card space-y-4">
+          <h2 className="font-semibold">📚 V1 / V2 Endpoints</h2>
+          <p className="text-xs text-slate-600">
+            Format simple: country pake numeric id, service pake code (mis.{" "}
+            <code>wa</code>, <code>tg</code>).
+          </p>
 
           <Endpoint
             method="GET"
-            path="/countries"
+            path="/api/vN/countries"
             desc="List negara tersedia."
             example={`curl -H "Authorization: Bearer ${exampleKey}" \\
   "${baseUrl}/api/v1/countries?q=indo"`}
             response={`{
   "data": [
-    { "id": 6, "slug": "indonesia", "name": "Indonesia" },
-    ...
+    { "id": 6, "slug": "indonesia", "name": "indonesia" }
   ],
   "total": 1
 }`}
@@ -207,13 +271,13 @@ export default function ApiDocs({ userName }: { userName: string }) {
 
           <Endpoint
             method="GET"
-            path="/services"
-            desc="List service untuk countryId tertentu."
+            path="/api/vN/services"
+            desc="List service untuk countryId."
             example={`curl -H "Authorization: Bearer ${exampleKey}" \\
   "${baseUrl}/api/v1/services?country=6&q=wa"`}
             response={`{
   "data": [
-    { "code": "wa", "name": "WhatsApp", "priceIdr": 2250, "stock": 33529 }
+    { "code": "wa", "name": "whatsapp", "priceIdr": 2250, "stock": 33529 }
   ],
   "total": 1
 }`}
@@ -221,8 +285,8 @@ export default function ApiDocs({ userName }: { userName: string }) {
 
           <Endpoint
             method="POST"
-            path="/order"
-            desc="Buat order baru. Return orderId + nomor virtual. Kalau gagal (stok habis / provider error), return 409 dengan code OUT_OF_STOCK."
+            path="/api/vN/order"
+            desc="Buat order baru."
             example={`curl -X POST \\
   -H "Authorization: Bearer ${exampleKey}" \\
   -H "Content-Type: application/json" \\
@@ -233,8 +297,8 @@ export default function ApiDocs({ userName }: { userName: string }) {
     "orderId": "12345678",
     "number": "+628123456789",
     "service": "wa",
-    "serviceName": "WhatsApp",
-    "country": "Indonesia",
+    "serviceName": "whatsapp",
+    "country": "indonesia",
     "countryId": 6,
     "priceIdr": 2250,
     "status": "PENDING",
@@ -242,16 +306,140 @@ export default function ApiDocs({ userName }: { userName: string }) {
   }
 }
 
-// Atau kalau gagal:
-{
-  "error": "Stok habis",
-  "code": "OUT_OF_STOCK"
+// Gagal:
+{ "error": "Stok habis", "code": "OUT_OF_STOCK" }`}
+          />
+        </section>
+
+        {/* V3: slug + multi-operator */}
+        <section className="card space-y-4">
+          <h2 className="font-semibold">📚 V3 Endpoints</h2>
+          <p className="text-xs text-slate-600">
+            Country pake <b>slug</b>, service punya <b>multi-operator</b>{" "}
+            dengan harga &amp; stok berbeda. Service code format{" "}
+            <code className="bg-slate-100 px-1 rounded">service:operator</code>.
+          </p>
+
+          <Endpoint
+            method="GET"
+            path="/api/v3/services"
+            desc="List service per kombinasi service+operator (skip operator yg stok 0). Sort by harga ascending."
+            example={`curl -H "Authorization: Bearer ${exampleKey}" \\
+  "${baseUrl}/api/v3/services?country=indonesia&q=whatsapp"`}
+            response={`{
+  "data": [
+    {
+      "code": "whatsapp:virtual53",
+      "name": "whatsapp (virtual53)",
+      "service": "whatsapp",
+      "operator": "virtual53",
+      "priceIdr": 5250,
+      "stock": 11946,
+      "rate": "13.8%"
+    },
+    { "code": "whatsapp:virtual58", ... }
+  ],
+  "total": 2
 }`}
           />
 
           <Endpoint
+            method="POST"
+            path="/api/v3/order"
+            desc="Buat order. Field service WAJIB format service:operator."
+            example={`curl -X POST \\
+  -H "Authorization: Bearer ${exampleKey}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"countryId": "indonesia", "service": "whatsapp:virtual53"}' \\
+  ${baseUrl}/api/v3/order`}
+            response={`{
+  "data": {
+    "orderId": "82968131",
+    "number": "+6285701720212",
+    "service": "whatsapp:virtual53",
+    "serviceName": "whatsapp",
+    "country": "indonesia",
+    "countryId": 66,
+    "priceIdr": 5250,
+    "status": "PENDING",
+    "otp": null
+  }
+}`}
+          />
+        </section>
+
+        {/* V4: numeric operator + dedup */}
+        <section className="card space-y-4">
+          <h2 className="font-semibold">📚 V4 Endpoints</h2>
+          <p className="text-xs text-slate-600">
+            Country pake <b>numeric id</b>, service multi-operator. Operator
+            dengan harga sama di-<b>merge</b> di list (1 entry per harga unique,
+            stok = total semua operator). Saat order, server random-pick operator.
+            Service code format{" "}
+            <code className="bg-slate-100 px-1 rounded">service:operatorId</code>.
+          </p>
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+            ⚠️ Khusus v4: service <code>wa</code> &amp; <code>tg</code> dengan
+            harga display di bawah Rp 2.000 disembunyikan dari list.
+          </p>
+
+          <Endpoint
             method="GET"
-            path="/order/:id"
+            path="/api/v4/services"
+            desc="List service+harga unique. Operator yg ditampilkan = yg stok max di harga itu."
+            example={`curl -H "Authorization: Bearer ${exampleKey}" \\
+  "${baseUrl}/api/v4/services?country=6&q=wa"`}
+            response={`{
+  "data": [
+    {
+      "code": "wa:3197",
+      "name": "whatsapp (3197)",
+      "service": "wa",
+      "operator": "3197",
+      "priceIdr": 1304,
+      "stock": 20
+    },
+    { "code": "wa:3211", "priceIdr": 8270, "stock": 217260 }
+  ],
+  "total": 27
+}`}
+          />
+
+          <Endpoint
+            method="POST"
+            path="/api/v4/order"
+            desc="Buat order. Server random-pick operator yang harganya sama dgn yg lo kirim."
+            example={`curl -X POST \\
+  -H "Authorization: Bearer ${exampleKey}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"countryId": 6, "service": "wa:3211"}' \\
+  ${baseUrl}/api/v4/order`}
+            response={`{
+  "data": {
+    "orderId": "29854227",
+    "number": "+6283191525346",
+    "service": "wa:3211",
+    "serviceName": "whatsapp",
+    "country": "indonesia",
+    "countryId": 6,
+    "priceIdr": 8270,
+    "status": "PENDING",
+    "otp": null
+  }
+}`}
+          />
+        </section>
+
+        {/* Common: GET status + cancel */}
+        <section className="card space-y-4">
+          <h2 className="font-semibold">📚 Common Endpoints (semua versi)</h2>
+          <p className="text-xs text-slate-600">
+            Polling status &amp; cancel format sama persis untuk semua provider.
+          </p>
+
+          <Endpoint
+            method="GET"
+            path="/api/vN/order/:id"
             desc="Cek status + OTP. Polling tiap 3-5 detik sampai otp != null atau status terminal."
             example={`curl -H "Authorization: Bearer ${exampleKey}" \\
   ${baseUrl}/api/v1/order/12345678`}
@@ -260,8 +448,8 @@ export default function ApiDocs({ userName }: { userName: string }) {
     "orderId": "12345678",
     "number": "+628123456789",
     "service": "wa",
-    "serviceName": "WhatsApp",
-    "country": "Indonesia",
+    "serviceName": "whatsapp",
+    "country": "indonesia",
     "status": "Sukses",
     "otp": "123456",
     "createdAt": 1716624000
@@ -271,18 +459,18 @@ export default function ApiDocs({ userName }: { userName: string }) {
 
           <Endpoint
             method="POST"
-            path="/order/:id/cancel"
-            desc="Batalkan order. Hanya bisa setelah 2 menit dari order dibuat."
+            path="/api/vN/order/:id/cancel"
+            desc="Batalkan order. v1/v2 min age 2 menit, v3/v4 min age 5 detik."
             example={`curl -X POST \\
   -H "Authorization: Bearer ${exampleKey}" \\
-  ${baseUrl}/api/v1/order/12345678/cancel`}
+  ${baseUrl}/api/v3/order/82968131/cancel`}
             response={`{ "ok": true }
 
-// Atau kalau belum 2 menit:
+// Sebelum min age:
 {
-  "error": "Order can only be cancelled after 2 minutes. 45s remaining.",
+  "error": "Order can only be cancelled after 5 seconds. 3s remaining.",
   "code": "TOO_EARLY",
-  "retryAfterSec": 45
+  "retryAfterSec": 3
 }`}
           />
         </section>
