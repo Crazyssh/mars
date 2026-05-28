@@ -3,7 +3,7 @@ import { mars3 } from "@/lib/mars3";
 import { requireApiKey } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
-const CANCEL_MIN_AGE_SEC = 120;
+const CANCEL_MIN_AGE_SEC = 5;
 
 export async function POST(
   req: NextRequest,
