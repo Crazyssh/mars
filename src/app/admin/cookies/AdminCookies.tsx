@@ -3,18 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 
 interface CookiesInfo {
-  v1: {
-    phpsessid: string;
-    cfClearance: string;
-    phpsessidLen: number;
-    cfClearanceLen: number;
-  };
-  v2: {
-    phpsessid: string;
-    userId: string;
-    expiresAt: string;
-    phpsessidLen: number;
-  };
+  v1: { phpsessid: string; cfClearance: string; phpsessidLen: number; cfClearanceLen: number };
+  v2: { phpsessid: string; userId: string; expiresAt: string; phpsessidLen: number };
+  v3: { phpsessid: string; userId: string; expiresAt: string; phpsessidLen: number };
 }
 
 export default function AdminCookies() {
@@ -22,16 +13,19 @@ export default function AdminCookies() {
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<{ type: "ok" | "err" | "warn"; text: string } | null>(null);
 
-  // V1 form
   const [v1Phpsessid, setV1Phpsessid] = useState("");
   const [v1CfClearance, setV1CfClearance] = useState("");
   const [v1Saving, setV1Saving] = useState(false);
 
-  // V2 form
   const [v2Phpsessid, setV2Phpsessid] = useState("");
   const [v2UserId, setV2UserId] = useState("");
   const [v2ExpiresAt, setV2ExpiresAt] = useState("");
   const [v2Saving, setV2Saving] = useState(false);
+
+  const [v3Phpsessid, setV3Phpsessid] = useState("");
+  const [v3UserId, setV3UserId] = useState("");
+  const [v3ExpiresAt, setV3ExpiresAt] = useState("");
+  const [v3Saving, setV3Saving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -56,66 +50,31 @@ export default function AdminCookies() {
       const res = await fetch("/api/admin/cookies", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "v1",
-          phpsessid: v1Phpsessid.trim(),
-          cfClearance: v1CfClearance.trim(),
-        }),
+        body: JSON.stringify({ provider: "v1", phpsessid: v1Phpsessid.trim(), cfClearance: v1CfClearance.trim() }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        setMsg({ type: "err", text: data.error ?? "Gagal save V1" });
-        return;
-      }
-      if (data.warning) {
-        setMsg({ type: "warn", text: data.error });
-      } else {
-        setMsg({ type: "ok", text: "✅ V1 cookies updated!" });
-      }
-      setV1Phpsessid("");
-      setV1CfClearance("");
-      load();
-    } catch {
-      setMsg({ type: "err", text: "Network error" });
-    } finally {
-      setV1Saving(false);
-    }
+      if (!res.ok) { setMsg({ type: "err", text: data.error ?? "Gagal save V1" }); return; }
+      setMsg({ type: data.warning ? "warn" : "ok", text: data.warning ? data.error : "✅ V1 cookies updated!" });
+      setV1Phpsessid(""); setV1CfClearance(""); load();
+    } catch { setMsg({ type: "err", text: "Network error" }); }
+    finally { setV1Saving(false); }
   }
 
-  async function saveV2(e: React.FormEvent) {
-    e.preventDefault();
-    setV2Saving(true);
+  async function saveProvider(provider: "v2" | "v3", phpsessid: string, userId: string, expiresAt: string, setSaving: (b: boolean) => void, reset: () => void) {
+    setSaving(true);
     setMsg(null);
     try {
       const res = await fetch("/api/admin/cookies", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "v2",
-          phpsessid: v2Phpsessid.trim(),
-          userId: v2UserId.trim(),
-          expiresAt: v2ExpiresAt.trim(),
-        }),
+        body: JSON.stringify({ provider, phpsessid: phpsessid.trim(), userId: userId.trim(), expiresAt: expiresAt.trim() }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        setMsg({ type: "err", text: data.error ?? "Gagal save V2" });
-        return;
-      }
-      if (data.warning) {
-        setMsg({ type: "warn", text: data.error });
-      } else {
-        setMsg({ type: "ok", text: "✅ V2 cookies updated!" });
-      }
-      setV2Phpsessid("");
-      setV2UserId("");
-      setV2ExpiresAt("");
-      load();
-    } catch {
-      setMsg({ type: "err", text: "Network error" });
-    } finally {
-      setV2Saving(false);
-    }
+      if (!res.ok) { setMsg({ type: "err", text: data.error ?? `Gagal save ${provider.toUpperCase()}` }); return; }
+      setMsg({ type: data.warning ? "warn" : "ok", text: data.warning ? data.error : `✅ ${provider.toUpperCase()} cookies updated!` });
+      reset(); load();
+    } catch { setMsg({ type: "err", text: "Network error" }); }
+    finally { setSaving(false); }
   }
 
   return (
@@ -124,175 +83,92 @@ export default function AdminCookies() {
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
           <h1 className="font-bold">Admin · Cookies</h1>
           <div className="flex gap-2">
-            <a href="/admin/orders" className="btn btn-secondary text-xs">
-              Orders
-            </a>
-            <a href="/admin/users" className="btn btn-secondary text-xs">
-              Users
-            </a>
-            <a href="/" className="btn btn-secondary text-xs">
-              ← Dashboard
-            </a>
+            <a href="/admin/orders" className="btn btn-secondary text-xs">Orders</a>
+            <a href="/admin/users" className="btn btn-secondary text-xs">Users</a>
+            <a href="/" className="btn btn-secondary text-xs">← Dashboard</a>
           </div>
         </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
         {msg && (
-          <div
-            className={`rounded-lg p-3 text-sm border ${
-              msg.type === "ok"
-                ? "bg-green-50 border-green-200 text-green-800"
-                : msg.type === "warn"
-                  ? "bg-yellow-50 border-yellow-200 text-yellow-800"
-                  : "bg-red-50 border-red-200 text-red-700"
-            }`}
-          >
+          <div className={`rounded-lg p-3 text-sm border ${msg.type === "ok" ? "bg-green-50 border-green-200 text-green-800" : msg.type === "warn" ? "bg-yellow-50 border-yellow-200 text-yellow-800" : "bg-red-50 border-red-200 text-red-700"}`}>
             {msg.text}
           </div>
         )}
 
-        {/* V1 Section */}
+        {/* V1 */}
         <section className="card space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold">📦 Provider V1 (orderv3)</h2>
             <span className="text-xs text-slate-500">PHPSESSID + cf_clearance</span>
           </div>
-
-          {loading ? (
-            <p className="text-xs text-slate-500">Loading...</p>
-          ) : !info ? (
-            <p className="text-xs text-slate-500">Gagal load.</p>
-          ) : (
+          {loading ? <p className="text-xs text-slate-500">Loading...</p> : !info ? <p className="text-xs text-slate-500">Gagal load.</p> : (
             <dl className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-slate-500">PHPSESSID</dt>
-                <dd className="font-mono text-xs">
-                  {info.v1.phpsessid}{" "}
-                  <span className="text-slate-400">({info.v1.phpsessidLen})</span>
-                </dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-slate-500">cf_clearance</dt>
-                <dd className="font-mono text-xs">
-                  {info.v1.cfClearance}{" "}
-                  <span className="text-slate-400">({info.v1.cfClearanceLen})</span>
-                </dd>
-              </div>
+              <div className="flex justify-between"><dt className="text-slate-500">PHPSESSID</dt><dd className="font-mono text-xs">{info.v1.phpsessid} <span className="text-slate-400">({info.v1.phpsessidLen})</span></dd></div>
+              <div className="flex justify-between"><dt className="text-slate-500">cf_clearance</dt><dd className="font-mono text-xs">{info.v1.cfClearance} <span className="text-slate-400">({info.v1.cfClearanceLen})</span></dd></div>
             </dl>
           )}
-
           <form onSubmit={saveV1} className="space-y-2 border-t pt-3">
-            <input
-              type="text"
-              placeholder="PHPSESSID baru"
-              value={v1Phpsessid}
-              onChange={(e) => setV1Phpsessid(e.target.value)}
-              className="input font-mono text-xs"
-            />
-            <textarea
-              placeholder="cf_clearance baru (FULL string, 200+ char)"
-              value={v1CfClearance}
-              onChange={(e) => setV1CfClearance(e.target.value)}
-              className="input font-mono text-xs min-h-[80px]"
-            />
-            <button
-              type="submit"
-              disabled={v1Saving || !v1Phpsessid || !v1CfClearance}
-              className="btn btn-primary text-sm"
-            >
-              {v1Saving ? "Saving..." : "Save V1 & Test"}
-            </button>
+            <input type="text" placeholder="PHPSESSID baru" value={v1Phpsessid} onChange={(e) => setV1Phpsessid(e.target.value)} className="input font-mono text-xs" />
+            <textarea placeholder="cf_clearance baru" value={v1CfClearance} onChange={(e) => setV1CfClearance(e.target.value)} className="input font-mono text-xs min-h-[80px]" />
+            <button type="submit" disabled={v1Saving || !v1Phpsessid || !v1CfClearance} className="btn btn-primary text-sm">{v1Saving ? "Saving..." : "Save V1 & Test"}</button>
           </form>
         </section>
 
-        {/* V2 Section */}
+        {/* V2 */}
         <section className="card space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold">🔄 Provider V2 (orderv2)</h2>
-            <span className="text-xs text-slate-500">
-              PHPSESSID + user_id + expires_at
-            </span>
+            <span className="text-xs text-slate-500">PHPSESSID + user_id + expires_at</span>
           </div>
-
-          {loading ? (
-            <p className="text-xs text-slate-500">Loading...</p>
-          ) : !info ? (
-            <p className="text-xs text-slate-500">Gagal load.</p>
-          ) : (
+          {loading ? <p className="text-xs text-slate-500">Loading...</p> : !info ? null : (
             <dl className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-slate-500">PHPSESSID</dt>
-                <dd className="font-mono text-xs">
-                  {info.v2.phpsessid}{" "}
-                  <span className="text-slate-400">({info.v2.phpsessidLen})</span>
-                </dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-slate-500">user_id</dt>
-                <dd className="font-mono text-xs">{info.v2.userId}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-slate-500">expires_at</dt>
-                <dd className="font-mono text-xs">
-                  {info.v2.expiresAt}
-                  {info.v2.expiresAt !== "(empty)" && (
-                    <span className="text-slate-400 ml-1">
-                      ({new Date(Number(info.v2.expiresAt) * 1000).toLocaleDateString("id-ID")})
-                    </span>
-                  )}
-                </dd>
-              </div>
+              <div className="flex justify-between"><dt className="text-slate-500">PHPSESSID</dt><dd className="font-mono text-xs">{info.v2.phpsessid} <span className="text-slate-400">({info.v2.phpsessidLen})</span></dd></div>
+              <div className="flex justify-between"><dt className="text-slate-500">user_id</dt><dd className="font-mono text-xs">{info.v2.userId}</dd></div>
+              <div className="flex justify-between"><dt className="text-slate-500">expires_at</dt><dd className="font-mono text-xs">{info.v2.expiresAt}{info.v2.expiresAt !== "(empty)" && <span className="text-slate-400 ml-1">({new Date(Number(info.v2.expiresAt) * 1000).toLocaleDateString("id-ID")})</span>}</dd></div>
             </dl>
           )}
-
-          <form onSubmit={saveV2} className="space-y-2 border-t pt-3">
-            <input
-              type="text"
-              placeholder="PHPSESSID baru"
-              value={v2Phpsessid}
-              onChange={(e) => setV2Phpsessid(e.target.value)}
-              className="input font-mono text-xs"
-            />
-            <input
-              type="text"
-              placeholder="user_id (mis. 156279)"
-              value={v2UserId}
-              onChange={(e) => setV2UserId(e.target.value)}
-              className="input font-mono text-xs"
-            />
-            <input
-              type="text"
-              placeholder="expires_at (unix timestamp, mis. 1780467200)"
-              value={v2ExpiresAt}
-              onChange={(e) => setV2ExpiresAt(e.target.value)}
-              className="input font-mono text-xs"
-            />
-            <button
-              type="submit"
-              disabled={
-                v2Saving || !v2Phpsessid || !v2UserId || !v2ExpiresAt
-              }
-              className="btn btn-primary text-sm"
-            >
-              {v2Saving ? "Saving..." : "Save V2 & Test"}
-            </button>
+          <form onSubmit={(e) => { e.preventDefault(); saveProvider("v2", v2Phpsessid, v2UserId, v2ExpiresAt, setV2Saving, () => { setV2Phpsessid(""); setV2UserId(""); setV2ExpiresAt(""); }); }} className="space-y-2 border-t pt-3">
+            <input type="text" placeholder="PHPSESSID baru" value={v2Phpsessid} onChange={(e) => setV2Phpsessid(e.target.value)} className="input font-mono text-xs" />
+            <input type="text" placeholder="user_id" value={v2UserId} onChange={(e) => setV2UserId(e.target.value)} className="input font-mono text-xs" />
+            <input type="text" placeholder="expires_at (unix timestamp)" value={v2ExpiresAt} onChange={(e) => setV2ExpiresAt(e.target.value)} className="input font-mono text-xs" />
+            <button type="submit" disabled={v2Saving || !v2Phpsessid || !v2UserId || !v2ExpiresAt} className="btn btn-primary text-sm">{v2Saving ? "Saving..." : "Save V2 & Test"}</button>
           </form>
         </section>
 
-        {/* Cara dapetin */}
+        {/* V3 */}
+        <section className="card space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold">⚡ Provider V3 (order)</h2>
+            <span className="text-xs text-slate-500">PHPSESSID + user_id + expires_at</span>
+          </div>
+          {loading ? <p className="text-xs text-slate-500">Loading...</p> : !info ? null : (
+            <dl className="space-y-1 text-sm">
+              <div className="flex justify-between"><dt className="text-slate-500">PHPSESSID</dt><dd className="font-mono text-xs">{info.v3.phpsessid} <span className="text-slate-400">({info.v3.phpsessidLen})</span></dd></div>
+              <div className="flex justify-between"><dt className="text-slate-500">user_id</dt><dd className="font-mono text-xs">{info.v3.userId}</dd></div>
+              <div className="flex justify-between"><dt className="text-slate-500">expires_at</dt><dd className="font-mono text-xs">{info.v3.expiresAt}{info.v3.expiresAt !== "(empty)" && <span className="text-slate-400 ml-1">({new Date(Number(info.v3.expiresAt) * 1000).toLocaleDateString("id-ID")})</span>}</dd></div>
+            </dl>
+          )}
+          <form onSubmit={(e) => { e.preventDefault(); saveProvider("v3", v3Phpsessid, v3UserId, v3ExpiresAt, setV3Saving, () => { setV3Phpsessid(""); setV3UserId(""); setV3ExpiresAt(""); }); }} className="space-y-2 border-t pt-3">
+            <input type="text" placeholder="PHPSESSID baru" value={v3Phpsessid} onChange={(e) => setV3Phpsessid(e.target.value)} className="input font-mono text-xs" />
+            <input type="text" placeholder="user_id" value={v3UserId} onChange={(e) => setV3UserId(e.target.value)} className="input font-mono text-xs" />
+            <input type="text" placeholder="expires_at (unix timestamp)" value={v3ExpiresAt} onChange={(e) => setV3ExpiresAt(e.target.value)} className="input font-mono text-xs" />
+            <button type="submit" disabled={v3Saving || !v3Phpsessid || !v3UserId || !v3ExpiresAt} className="btn btn-primary text-sm">{v3Saving ? "Saving..." : "Save V3 & Test"}</button>
+          </form>
+        </section>
+
         <section className="card text-xs text-slate-600 space-y-2">
           <h3 className="font-semibold text-slate-900">ℹ️ Cara dapetin cookies</h3>
           <ol className="list-decimal list-inside space-y-1">
             <li>Login ke situs provider di browser</li>
             <li>F12 → tab <b>Application</b> → <b>Cookies</b></li>
-            <li>Untuk V1 (orderv3): copy <code>PHPSESSID</code> + <code>cf_clearance</code></li>
-            <li>Untuk V2 (orderv2): copy <code>PHPSESSID</code> + <code>user_id</code> + <code>expires_at</code></li>
-            <li>Paste ke form di atas → Save</li>
+            <li>V1: copy <code>PHPSESSID</code> + <code>cf_clearance</code></li>
+            <li>V2 / V3: copy <code>PHPSESSID</code> + <code>user_id</code> + <code>expires_at</code></li>
+            <li>Paste ke form yang sesuai → Save</li>
           </ol>
           <p className="pt-2 italic text-slate-500">
-            Cookies tersimpan di DB, langsung apply tanpa restart server. V1 &amp;
-            V2 simpan terpisah — update salah satu gak ganggu yang lain.
+            Tiap provider akun terpisah, simpan sendiri-sendiri. Update salah satu gak ganggu yang lain.
           </p>
         </section>
       </main>

@@ -1,12 +1,13 @@
 /**
  * Background poller — sinkron pending orders dengan provider tiap interval.
  *
- * Sekarang handle 2 provider: v1 (mars) & v2 (mars2).
- * Tiap tick: query DB pending order, group by provider, fetch live data dari
- * provider yang sesuai, sync ke DB.
+ * Sekarang handle 3 provider: v1 (mars), v2 (mars2), v3 (mars3).
+ * Tiap tick: query DB pending order, group by provider, fetch live data
+ * paralel per provider, sync ke DB.
  */
 import { mars, MarsError } from "./mars";
 import { mars2 } from "./mars2";
+import { mars3 } from "./mars3";
 import { prisma } from "./prisma";
 import { syncOrderFromLive } from "./order-sync";
 import type { HistoryOrder } from "./mars";
@@ -15,27 +16,27 @@ const INTERVAL_MS = 10_000;
 const PENDING_TIMEOUT_MS = 22 * 60 * 1000;
 const SKIP_TICKS_ON_429 = 7;
 
+type Provider = "v1" | "v2" | "v3";
+
 declare global {
   // eslint-disable-next-line no-var
   var __marsPoller:
     | {
         interval: NodeJS.Timeout;
         running: boolean;
-        skipUntilTickV1: number;
-        skipUntilTickV2: number;
+        skipUntilTick: Record<Provider, number>;
         tickCount: number;
       }
     | undefined;
 }
 
 async function fetchProviderHistory(
-  provider: "v1" | "v2"
+  provider: Provider
 ): Promise<HistoryOrder[] | null> {
   try {
-    if (provider === "v1") {
-      return await mars.fetchHistoryFresh(1, 100);
-    }
-    return await mars2.fetchHistoryFresh(1, 100);
+    if (provider === "v1") return await mars.fetchHistoryFresh(1, 100);
+    if (provider === "v2") return await mars2.fetchHistoryFresh(1, 100);
+    return await mars3.fetchHistoryFresh(1, 100);
   } catch (e) {
     if (e instanceof MarsError && e.statusCode === 429) {
       return null; // signal back-off
@@ -46,15 +47,13 @@ async function fetchProviderHistory(
 }
 
 async function syncProvider(
-  provider: "v1" | "v2",
+  provider: Provider,
   pending: { id: string; orderId: string; createdAt: Date }[]
 ): Promise<{ updated: number; rateLimited: boolean }> {
   if (pending.length === 0) return { updated: 0, rateLimited: false };
 
   const live = await fetchProviderHistory(provider);
-  if (live === null) {
-    return { updated: 0, rateLimited: true };
-  }
+  if (live === null) return { updated: 0, rateLimited: true };
 
   const liveMap = new Map(live.map((o) => [o.order_id, o]));
   let updated = 0;
@@ -80,8 +79,7 @@ async function syncProvider(
 }
 
 async function tick(state: {
-  skipUntilTickV1: number;
-  skipUntilTickV2: number;
+  skipUntilTick: Record<Provider, number>;
   tickCount: number;
 }): Promise<void> {
   state.tickCount++;
@@ -93,35 +91,29 @@ async function tick(state: {
 
   if (allPending.length === 0) return;
 
-  const v1Pending = allPending.filter((p) => p.provider === "v1");
-  const v2Pending = allPending.filter((p) => p.provider === "v2");
+  const grouped: Record<Provider, typeof allPending> = {
+    v1: allPending.filter((p) => p.provider === "v1"),
+    v2: allPending.filter((p) => p.provider === "v2"),
+    v3: allPending.filter((p) => p.provider === "v3"),
+  };
 
   const tasks: Promise<void>[] = [];
+  for (const provider of ["v1", "v2", "v3"] as const) {
+    const pending = grouped[provider];
+    if (pending.length === 0) continue;
+    if (state.tickCount < state.skipUntilTick[provider]) continue;
 
-  if (v1Pending.length > 0 && state.tickCount >= state.skipUntilTickV1) {
     tasks.push(
-      syncProvider("v1", v1Pending).then((r) => {
+      syncProvider(provider, pending).then((r) => {
         if (r.rateLimited) {
-          state.skipUntilTickV1 = state.tickCount + SKIP_TICKS_ON_429;
+          state.skipUntilTick[provider] = state.tickCount + SKIP_TICKS_ON_429;
           console.warn(
-            `[poller] v1 rate-limited, back off ${SKIP_TICKS_ON_429} ticks`
+            `[poller] ${provider} rate-limited, back off ${SKIP_TICKS_ON_429} ticks`
           );
         } else if (r.updated > 0) {
-          console.log(`[poller] v1 synced ${r.updated}/${v1Pending.length}`);
-        }
-      })
-    );
-  }
-  if (v2Pending.length > 0 && state.tickCount >= state.skipUntilTickV2) {
-    tasks.push(
-      syncProvider("v2", v2Pending).then((r) => {
-        if (r.rateLimited) {
-          state.skipUntilTickV2 = state.tickCount + SKIP_TICKS_ON_429;
-          console.warn(
-            `[poller] v2 rate-limited, back off ${SKIP_TICKS_ON_429} ticks`
+          console.log(
+            `[poller] ${provider} synced ${r.updated}/${pending.length}`
           );
-        } else if (r.updated > 0) {
-          console.log(`[poller] v2 synced ${r.updated}/${v2Pending.length}`);
         }
       })
     );
@@ -136,11 +128,12 @@ export function startPoller(): void {
     return;
   }
 
-  console.log(`[poller] starting (interval=${INTERVAL_MS}ms, providers=v1+v2)`);
+  console.log(
+    `[poller] starting (interval=${INTERVAL_MS}ms, providers=v1+v2+v3)`
+  );
   const state = {
     running: false,
-    skipUntilTickV1: 0,
-    skipUntilTickV2: 0,
+    skipUntilTick: { v1: 0, v2: 0, v3: 0 } as Record<Provider, number>,
     tickCount: 0,
     interval: null as unknown as NodeJS.Timeout,
   };
