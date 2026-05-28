@@ -173,10 +173,11 @@ export default function ApiDocs({ userName }: { userName: string }) {
               <code className="text-amber-300">{baseUrl}/api/v2</code>
               {" / "}
               <code className="text-amber-300">{baseUrl}/api/v3</code>
+              {" / "}
+              <code className="text-amber-300">{baseUrl}/api/v4</code>
             </div>
             <div className="text-slate-300">
-              V1, V2, V3 punya provider terpisah. Endpoint &amp; auth sama,
-              tinggal ganti version di URL.
+              4 provider terpisah. Endpoint &amp; auth sama, tinggal ganti version di URL.
             </div>
             <div>
               <span className="text-blue-400">Auth:</span> header{" "}

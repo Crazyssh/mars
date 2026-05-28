@@ -1,13 +1,12 @@
 /**
  * Background poller — sinkron pending orders dengan provider tiap interval.
  *
- * Sekarang handle 3 provider: v1 (mars), v2 (mars2), v3 (mars3).
- * Tiap tick: query DB pending order, group by provider, fetch live data
- * paralel per provider, sync ke DB.
+ * Handle 4 provider: v1 (mars), v2 (mars2), v3 (mars3), v4 (mars4).
  */
 import { mars, MarsError } from "./mars";
 import { mars2 } from "./mars2";
 import { mars3 } from "./mars3";
+import { mars4 } from "./mars4";
 import { prisma } from "./prisma";
 import { syncOrderFromLive } from "./order-sync";
 import type { HistoryOrder } from "./mars";
@@ -16,7 +15,7 @@ const INTERVAL_MS = 10_000;
 const PENDING_TIMEOUT_MS = 22 * 60 * 1000;
 const SKIP_TICKS_ON_429 = 7;
 
-type Provider = "v1" | "v2" | "v3";
+type Provider = "v1" | "v2" | "v3" | "v4";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -36,10 +35,11 @@ async function fetchProviderHistory(
   try {
     if (provider === "v1") return await mars.fetchHistoryFresh(1, 100);
     if (provider === "v2") return await mars2.fetchHistoryFresh(1, 100);
-    return await mars3.fetchHistoryFresh(1, 100);
+    if (provider === "v3") return await mars3.fetchHistoryFresh(1, 100);
+    return await mars4.fetchHistoryFresh(1, 100);
   } catch (e) {
     if (e instanceof MarsError && e.statusCode === 429) {
-      return null; // signal back-off
+      return null;
     }
     console.warn(`[poller] ${provider} fetch failed:`, (e as Error).message);
     return [];
@@ -95,10 +95,11 @@ async function tick(state: {
     v1: allPending.filter((p) => p.provider === "v1"),
     v2: allPending.filter((p) => p.provider === "v2"),
     v3: allPending.filter((p) => p.provider === "v3"),
+    v4: allPending.filter((p) => p.provider === "v4"),
   };
 
   const tasks: Promise<void>[] = [];
-  for (const provider of ["v1", "v2", "v3"] as const) {
+  for (const provider of ["v1", "v2", "v3", "v4"] as const) {
     const pending = grouped[provider];
     if (pending.length === 0) continue;
     if (state.tickCount < state.skipUntilTick[provider]) continue;
@@ -129,11 +130,11 @@ export function startPoller(): void {
   }
 
   console.log(
-    `[poller] starting (interval=${INTERVAL_MS}ms, providers=v1+v2+v3)`
+    `[poller] starting (interval=${INTERVAL_MS}ms, providers=v1+v2+v3+v4)`
   );
   const state = {
     running: false,
-    skipUntilTick: { v1: 0, v2: 0, v3: 0 } as Record<Provider, number>,
+    skipUntilTick: { v1: 0, v2: 0, v3: 0, v4: 0 } as Record<Provider, number>,
     tickCount: 0,
     interval: null as unknown as NodeJS.Timeout,
   };

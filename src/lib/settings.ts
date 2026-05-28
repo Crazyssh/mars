@@ -39,4 +39,7 @@ export const SETTING_KEYS = {
   MARS3_PHPSESSID: "mars3.phpsessid",
   MARS3_USER_ID: "mars3.user_id",
   MARS3_EXPIRES_AT: "mars3.expires_at",
+  MARS4_PHPSESSID: "mars4.phpsessid",
+  MARS4_USER_ID: "mars4.user_id",
+  MARS4_EXPIRES_AT: "mars4.expires_at",
 } as const;

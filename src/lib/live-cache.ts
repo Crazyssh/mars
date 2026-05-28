@@ -90,4 +90,6 @@ export const CACHE_KEYS = {
   V2_SERVICES: (countryId: number) => `ditz:v2:services:${countryId}`,
   V3_HISTORY_PAGE_1: "ditz:v3:history:p1",
   V3_SERVICES: (countrySlug: string) => `ditz:v3:services:${countrySlug}`,
+  V4_HISTORY_PAGE_1: "ditz:v4:history:p1",
+  V4_SERVICES: (countryId: number) => `ditz:v4:services:${countryId}`,
 } as const;

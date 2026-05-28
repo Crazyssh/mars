@@ -6,6 +6,7 @@ interface CookiesInfo {
   v1: { phpsessid: string; cfClearance: string; phpsessidLen: number; cfClearanceLen: number };
   v2: { phpsessid: string; userId: string; expiresAt: string; phpsessidLen: number };
   v3: { phpsessid: string; userId: string; expiresAt: string; phpsessidLen: number };
+  v4: { phpsessid: string; userId: string; expiresAt: string; phpsessidLen: number };
 }
 
 export default function AdminCookies() {
@@ -26,6 +27,11 @@ export default function AdminCookies() {
   const [v3UserId, setV3UserId] = useState("");
   const [v3ExpiresAt, setV3ExpiresAt] = useState("");
   const [v3Saving, setV3Saving] = useState(false);
+
+  const [v4Phpsessid, setV4Phpsessid] = useState("");
+  const [v4UserId, setV4UserId] = useState("");
+  const [v4ExpiresAt, setV4ExpiresAt] = useState("");
+  const [v4Saving, setV4Saving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,7 +66,7 @@ export default function AdminCookies() {
     finally { setV1Saving(false); }
   }
 
-  async function saveProvider(provider: "v2" | "v3", phpsessid: string, userId: string, expiresAt: string, setSaving: (b: boolean) => void, reset: () => void) {
+  async function saveProvider(provider: "v2" | "v3" | "v4", phpsessid: string, userId: string, expiresAt: string, setSaving: (b: boolean) => void, reset: () => void) {
     setSaving(true);
     setMsg(null);
     try {
@@ -155,6 +161,27 @@ export default function AdminCookies() {
             <input type="text" placeholder="user_id" value={v3UserId} onChange={(e) => setV3UserId(e.target.value)} className="input font-mono text-xs" />
             <input type="text" placeholder="expires_at (unix timestamp)" value={v3ExpiresAt} onChange={(e) => setV3ExpiresAt(e.target.value)} className="input font-mono text-xs" />
             <button type="submit" disabled={v3Saving || !v3Phpsessid || !v3UserId || !v3ExpiresAt} className="btn btn-primary text-sm">{v3Saving ? "Saving..." : "Save V3 & Test"}</button>
+          </form>
+        </section>
+
+        {/* V4 */}
+        <section className="card space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold">🚀 Provider V4 (orderv5)</h2>
+            <span className="text-xs text-slate-500">PHPSESSID + user_id + expires_at</span>
+          </div>
+          {loading ? <p className="text-xs text-slate-500">Loading...</p> : !info ? null : (
+            <dl className="space-y-1 text-sm">
+              <div className="flex justify-between"><dt className="text-slate-500">PHPSESSID</dt><dd className="font-mono text-xs">{info.v4.phpsessid} <span className="text-slate-400">({info.v4.phpsessidLen})</span></dd></div>
+              <div className="flex justify-between"><dt className="text-slate-500">user_id</dt><dd className="font-mono text-xs">{info.v4.userId}</dd></div>
+              <div className="flex justify-between"><dt className="text-slate-500">expires_at</dt><dd className="font-mono text-xs">{info.v4.expiresAt}{info.v4.expiresAt !== "(empty)" && <span className="text-slate-400 ml-1">({new Date(Number(info.v4.expiresAt) * 1000).toLocaleDateString("id-ID")})</span>}</dd></div>
+            </dl>
+          )}
+          <form onSubmit={(e) => { e.preventDefault(); saveProvider("v4", v4Phpsessid, v4UserId, v4ExpiresAt, setV4Saving, () => { setV4Phpsessid(""); setV4UserId(""); setV4ExpiresAt(""); }); }} className="space-y-2 border-t pt-3">
+            <input type="text" placeholder="PHPSESSID baru" value={v4Phpsessid} onChange={(e) => setV4Phpsessid(e.target.value)} className="input font-mono text-xs" />
+            <input type="text" placeholder="user_id" value={v4UserId} onChange={(e) => setV4UserId(e.target.value)} className="input font-mono text-xs" />
+            <input type="text" placeholder="expires_at (unix timestamp)" value={v4ExpiresAt} onChange={(e) => setV4ExpiresAt(e.target.value)} className="input font-mono text-xs" />
+            <button type="submit" disabled={v4Saving || !v4Phpsessid || !v4UserId || !v4ExpiresAt} className="btn btn-primary text-sm">{v4Saving ? "Saving..." : "Save V4 & Test"}</button>
           </form>
         </section>
 

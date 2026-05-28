@@ -4,46 +4,30 @@ import { requireAdmin } from "@/lib/auth";
 import { mars } from "@/lib/mars";
 import { mars2 } from "@/lib/mars2";
 import { mars3 } from "@/lib/mars3";
+import { mars4 } from "@/lib/mars4";
 
-/**
- * GET — return cookies v1 + v2 + v3 (preview, di-mask).
- */
 export async function GET() {
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
 
-  const [v1Sess, v1Cf, v2Sess, v2User, v2Exp, v3Sess, v3User, v3Exp] =
-    await Promise.all([
-      mars.getPhpsessid(),
-      mars.getCfClearance(),
-      mars2.getPhpsessid(),
-      mars2.getUserId(),
-      mars2.getExpiresAt(),
-      mars3.getPhpsessid(),
-      mars3.getUserId(),
-      mars3.getExpiresAt(),
-    ]);
+  const [
+    v1Sess, v1Cf,
+    v2Sess, v2User, v2Exp,
+    v3Sess, v3User, v3Exp,
+    v4Sess, v4User, v4Exp,
+  ] = await Promise.all([
+    mars.getPhpsessid(), mars.getCfClearance(),
+    mars2.getPhpsessid(), mars2.getUserId(), mars2.getExpiresAt(),
+    mars3.getPhpsessid(), mars3.getUserId(), mars3.getExpiresAt(),
+    mars4.getPhpsessid(), mars4.getUserId(), mars4.getExpiresAt(),
+  ]);
 
   return NextResponse.json({
     data: {
-      v1: {
-        phpsessid: maskMiddle(v1Sess),
-        cfClearance: maskMiddle(v1Cf),
-        phpsessidLen: v1Sess.length,
-        cfClearanceLen: v1Cf.length,
-      },
-      v2: {
-        phpsessid: maskMiddle(v2Sess),
-        userId: v2User || "(empty)",
-        expiresAt: v2Exp || "(empty)",
-        phpsessidLen: v2Sess.length,
-      },
-      v3: {
-        phpsessid: maskMiddle(v3Sess),
-        userId: v3User || "(empty)",
-        expiresAt: v3Exp || "(empty)",
-        phpsessidLen: v3Sess.length,
-      },
+      v1: { phpsessid: maskMiddle(v1Sess), cfClearance: maskMiddle(v1Cf), phpsessidLen: v1Sess.length, cfClearanceLen: v1Cf.length },
+      v2: { phpsessid: maskMiddle(v2Sess), userId: v2User || "(empty)", expiresAt: v2Exp || "(empty)", phpsessidLen: v2Sess.length },
+      v3: { phpsessid: maskMiddle(v3Sess), userId: v3User || "(empty)", expiresAt: v3Exp || "(empty)", phpsessidLen: v3Sess.length },
+      v4: { phpsessid: maskMiddle(v4Sess), userId: v4User || "(empty)", expiresAt: v4Exp || "(empty)", phpsessidLen: v4Sess.length },
     },
   });
 }
@@ -62,12 +46,10 @@ const userExpSchema = z.object({
 
 const v2Schema = userExpSchema.extend({ provider: z.literal("v2") });
 const v3Schema = userExpSchema.extend({ provider: z.literal("v3") });
+const v4Schema = userExpSchema.extend({ provider: z.literal("v4") });
 
-const schema = z.union([v1Schema, v2Schema, v3Schema]);
+const schema = z.union([v1Schema, v2Schema, v3Schema, v4Schema]);
 
-/**
- * POST — update cookies (v1 / v2 / v3 tergantung field `provider`).
- */
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin();
   if (auth.error) return auth.error;
@@ -84,52 +66,23 @@ export async function POST(req: NextRequest) {
   if (parsed.data.provider === "v1") {
     const { phpsessid, cfClearance } = parsed.data;
     await mars.setCookies(phpsessid.trim(), cfClearance.trim());
-    try {
-      await mars.loadCountries();
-    } catch (e) {
-      return NextResponse.json(
-        {
-          error: `V1 cookies disimpan tapi gagal test: ${(e as Error).message}`,
-          warning: true,
-        },
-        { status: 200 }
-      );
+    try { await mars.loadCountries(); }
+    catch (e) {
+      return NextResponse.json({ error: `V1 cookies disimpan tapi gagal test: ${(e as Error).message}`, warning: true }, { status: 200 });
     }
     return NextResponse.json({ ok: true, provider: "v1" });
   }
 
-  if (parsed.data.provider === "v2") {
-    const { phpsessid, userId, expiresAt } = parsed.data;
-    await mars2.setCookies(phpsessid.trim(), userId.trim(), expiresAt.trim());
-    try {
-      await mars2.loadCountries();
-    } catch (e) {
-      return NextResponse.json(
-        {
-          error: `V2 cookies disimpan tapi gagal test: ${(e as Error).message}`,
-          warning: true,
-        },
-        { status: 200 }
-      );
-    }
-    return NextResponse.json({ ok: true, provider: "v2" });
-  }
-
-  // v3
   const { phpsessid, userId, expiresAt } = parsed.data;
-  await mars3.setCookies(phpsessid.trim(), userId.trim(), expiresAt.trim());
-  try {
-    await mars3.loadCountries();
-  } catch (e) {
-    return NextResponse.json(
-      {
-        error: `V3 cookies disimpan tapi gagal test: ${(e as Error).message}`,
-        warning: true,
-      },
-      { status: 200 }
-    );
+  const provider = parsed.data.provider;
+  const client = provider === "v2" ? mars2 : provider === "v3" ? mars3 : mars4;
+
+  await client.setCookies(phpsessid.trim(), userId.trim(), expiresAt.trim());
+  try { await client.loadCountries(); }
+  catch (e) {
+    return NextResponse.json({ error: `${provider.toUpperCase()} cookies disimpan tapi gagal test: ${(e as Error).message}`, warning: true }, { status: 200 });
   }
-  return NextResponse.json({ ok: true, provider: "v3" });
+  return NextResponse.json({ ok: true, provider });
 }
 
 function maskMiddle(s: string): string {
