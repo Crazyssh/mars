@@ -13,7 +13,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { config } from "./config";
-import { extractCountriesV3, extractSaldo } from "./parse-html";
+import { extractCountriesV3FromSlug, extractSaldo } from "./parse-html";
 import { getSetting, setSetting, SETTING_KEYS } from "./settings";
 import { withCache, setCacheValue, CACHE_KEYS } from "./live-cache";
 import {
@@ -163,7 +163,7 @@ class Mars3Client {
 
   async loadCountries(): Promise<MarsCountry[]> {
     const html = await this.getOrderPageHtml();
-    const list = extractCountriesV3(html);
+    const list = extractCountriesV3FromSlug(html);
     if (list.length === 0) {
       throw new MarsError(
         "Gagal parse country list dari provider — HTML format mungkin berubah",

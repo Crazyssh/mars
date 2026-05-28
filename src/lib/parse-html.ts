@@ -27,3 +27,35 @@ export function extractCountriesV3(
   }
   return list;
 }
+
+/**
+ * Parser khusus halaman v3 (/order):
+ * <select name="country">
+ *   <option value="slug">name</option>
+ * </select>
+ *
+ * Format value = slug (string), gak ada numeric id. Kita assign id sequential
+ * dari 1 supaya konsisten dengan interface MarsCountry.
+ */
+export function extractCountriesV3FromSlug(
+  html: string
+): Array<{ id: number; slug: string; name: string }> {
+  const list: Array<{ id: number; slug: string; name: string }> = [];
+  // Cari section <select name="country" ...>...</select>
+  const selectMatch = html.match(
+    /<select[^>]+name="country"[^>]*>([\s\S]*?)<\/select>/i
+  );
+  if (!selectMatch) return list;
+  const inner = selectMatch[1];
+
+  const optionRegex = /<option\s+value="([a-z][a-z0-9_-]*)"[^>]*>([^<]+)<\/option>/gi;
+  let id = 1;
+  for (const m of inner.matchAll(optionRegex)) {
+    const slug = m[1].trim();
+    const name = m[2].trim();
+    if (!slug || !name || slug === "" || name.toLowerCase().startsWith("pilih"))
+      continue;
+    list.push({ id: id++, slug, name });
+  }
+  return list;
+}
