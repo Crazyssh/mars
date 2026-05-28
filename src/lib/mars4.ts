@@ -89,12 +89,16 @@ export function flattenV4Services(
     if (!operators || typeof operators !== "object") continue;
     const sample = Object.values(operators)[0];
     const fullName = sample?.service ?? service;
-    if (
-      query &&
-      !service.toLowerCase().includes(query) &&
-      !fullName.toLowerCase().includes(query)
-    ) {
-      continue;
+    if (query) {
+      // Match: code exact match, code startsWith query, atau fullName startsWith query
+      const codeLower = service.toLowerCase();
+      const nameLower = fullName.toLowerCase();
+      const matches =
+        codeLower === query ||
+        codeLower.startsWith(query) ||
+        nameLower.startsWith(query) ||
+        nameLower === query;
+      if (!matches) continue;
     }
 
     // Group by harga: untuk operator dengan harga sama, pilih yg stock terbanyak.
