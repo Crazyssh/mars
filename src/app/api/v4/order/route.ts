@@ -60,10 +60,10 @@ export async function POST(req: NextRequest) {
     const targetPrice = parseHarga(requestedInfo.harga);
     const displayPrice = Math.round(targetPrice * 0.6);
 
-    // Block WA & TG kalau harga display di bawah 2000 (konsisten dengan filter list)
+    // Block WA & TG kalau harga display di bawah 2200 (konsisten dengan filter list)
     if (
       (serviceCode === "wa" || serviceCode === "tg") &&
-      displayPrice < 2000
+      displayPrice < 2200
     ) {
       return NextResponse.json(STOCK_ERROR, { status: 409 });
     }

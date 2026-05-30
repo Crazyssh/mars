@@ -380,7 +380,7 @@ export default function ApiDocs({ userName }: { userName: string }) {
           </p>
           <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
             ⚠️ Khusus v4: service <code>wa</code> &amp; <code>tg</code> dengan
-            harga display di bawah Rp 2.000 disembunyikan dari list.
+            harga display di bawah Rp 2.200 disembunyikan dari list.
           </p>
 
           <Endpoint
