@@ -67,6 +67,81 @@ export function getHealthHistory(): HealthCheck[] {
   return global.__marsHealth?.history ?? [];
 }
 
+/**
+ * Jalanin satu check manual (dipanggil dari tombol di web). Hasil masuk history.
+ */
+export async function runManualCheck(): Promise<HealthCheck> {
+  const check = await runCheck();
+  if (global.__marsHealth) {
+    global.__marsHealth.history.unshift(check);
+    if (global.__marsHealth.history.length > MAX_HISTORY) {
+      global.__marsHealth.history.length = MAX_HISTORY;
+    }
+  }
+  return check;
+}
+
+/**
+ * Hitung statistik dari history (cuma yang sukses untuk TTFB stats).
+ */
+export function getHealthStats(): {
+  totalChecks: number;
+  okCount: number;
+  failCount: number;
+  uptimePct: number;
+  ttfb: { min: number; max: number; avg: number; p95: number } | null;
+  distribution: { label: string; count: number }[];
+} {
+  const history = getHealthHistory();
+  const total = history.length;
+  const okChecks = history.filter((h) => h.ok);
+  const failCount = total - okChecks.length;
+
+  const ttfbs = okChecks
+    .map((h) => h.ttfbMs)
+    .filter((ms) => ms >= 0)
+    .sort((a, b) => a - b);
+
+  let ttfb: { min: number; max: number; avg: number; p95: number } | null = null;
+  if (ttfbs.length > 0) {
+    const sum = ttfbs.reduce((s, v) => s + v, 0);
+    const p95Idx = Math.floor(ttfbs.length * 0.95);
+    ttfb = {
+      min: ttfbs[0],
+      max: ttfbs[ttfbs.length - 1],
+      avg: Math.round(sum / ttfbs.length),
+      p95: ttfbs[Math.min(p95Idx, ttfbs.length - 1)],
+    };
+  }
+
+  // Distribusi latency bucket
+  const buckets = [
+    { label: "< 1s", count: 0 },
+    { label: "1-3s", count: 0 },
+    { label: "3-5s", count: 0 },
+    { label: "5-10s", count: 0 },
+    { label: "> 10s", count: 0 },
+    { label: "fail", count: 0 },
+  ];
+  for (const h of history) {
+    if (!h.ok || h.ttfbMs < 0) buckets[5].count++;
+    else if (h.ttfbMs < 1000) buckets[0].count++;
+    else if (h.ttfbMs < 3000) buckets[1].count++;
+    else if (h.ttfbMs < 5000) buckets[2].count++;
+    else if (h.ttfbMs < 10000) buckets[3].count++;
+    else buckets[4].count++;
+  }
+
+  return {
+    totalChecks: total,
+    okCount: okChecks.length,
+    failCount,
+    uptimePct: total > 0 ? Math.round((okChecks.length / total) * 100) : 0,
+    ttfb,
+    distribution: buckets,
+  };
+}
+
 export function startHealthMonitor(): void {
   if (global.__marsHealth) {
     console.log("[health] already running, skip");

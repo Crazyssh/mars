@@ -354,6 +354,9 @@ export default function Dashboard({ user }: { user: User }) {
                 <a href="/admin/cookies" className="btn btn-secondary text-xs">
                   Cookies
                 </a>
+                <a href="/admin/health" className="btn btn-secondary text-xs">
+                  Health
+                </a>
               </>
             )}
             <button onClick={logout} className="btn btn-secondary text-xs">

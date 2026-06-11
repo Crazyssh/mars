@@ -91,6 +91,7 @@ export default function AdminCookies() {
           <div className="flex gap-2">
             <a href="/admin/orders" className="btn btn-secondary text-xs">Orders</a>
             <a href="/admin/users" className="btn btn-secondary text-xs">Users</a>
+            <a href="/admin/health" className="btn btn-secondary text-xs">Health</a>
             <a href="/" className="btn btn-secondary text-xs">← Dashboard</a>
           </div>
         </div>

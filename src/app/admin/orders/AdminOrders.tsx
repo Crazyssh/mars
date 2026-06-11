@@ -97,6 +97,9 @@ export default function AdminOrders() {
             <a href="/admin/cookies" className="btn btn-secondary text-xs">
               Cookies
             </a>
+            <a href="/admin/health" className="btn btn-secondary text-xs">
+              Health
+            </a>
             <a href="/" className="btn btn-secondary text-xs">
               ← Dashboard
             </a>
