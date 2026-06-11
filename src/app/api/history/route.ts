@@ -82,3 +82,27 @@ export async function GET() {
     );
   }
 }
+
+/**
+ * DELETE /api/history — hapus history order milik user yang login.
+ *
+ * Query param:
+ *   - finishedOnly=1 → cuma hapus yang udah selesai (otp_received/expired/cancelled),
+ *     order pending tetep aman biar gak ganggu polling
+ *   - default: hapus SEMUA order milik user
+ */
+export async function DELETE(req: Request) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
+  const url = new URL(req.url);
+  const finishedOnly = url.searchParams.get("finishedOnly") === "1";
+
+  const where = finishedOnly
+    ? { userId: auth.user.id, outcome: { not: "pending" } }
+    : { userId: auth.user.id };
+
+  const result = await prisma.orderLog.deleteMany({ where });
+
+  return NextResponse.json({ ok: true, deleted: result.count });
+}

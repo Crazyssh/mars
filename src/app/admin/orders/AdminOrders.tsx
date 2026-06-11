@@ -64,6 +64,27 @@ export default function AdminOrders() {
     load();
   }, [load]);
 
+  const clearAll = useCallback(async () => {
+    if (!confirm("Hapus SEMUA history order (semua user) yang sudah selesai? Order PENDING tetap aman.")) {
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/orders", { method: "DELETE" });
+      const data = await res.json();
+      if (res.ok) {
+        alert(`${data.deleted} order log dihapus.`);
+        await load();
+      } else {
+        setError(data.error ?? "Gagal hapus");
+      }
+    } catch {
+      setError("Network error");
+    } finally {
+      setLoading(false);
+    }
+  }, [load]);
+
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="bg-white border-b border-slate-200">
@@ -135,6 +156,13 @@ export default function AdminOrders() {
                 disabled={loading}
               >
                 {loading ? "..." : "Refresh"}
+              </button>
+              <button
+                onClick={clearAll}
+                className="text-xs text-red-600 hover:underline"
+                disabled={loading}
+              >
+                Hapus history
               </button>
             </div>
           </div>

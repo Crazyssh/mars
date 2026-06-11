@@ -32,3 +32,39 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ data: orders });
 }
+
+/**
+ * DELETE /api/admin/orders — hapus order log (admin only).
+ *
+ * Query param:
+ *   - olderThanDays=N → cuma hapus order > N hari (default: semua kecuali pending)
+ *   - all=1           → hapus SEMUA termasuk pending (hati-hati)
+ *
+ * Default (tanpa param): hapus semua yang outcome != pending (biar order
+ * yang lagi jalan gak ke-hapus).
+ */
+export async function DELETE(req: NextRequest) {
+  const auth = await requireAdmin();
+  if (auth.error) return auth.error;
+
+  const all = req.nextUrl.searchParams.get("all") === "1";
+  const olderThanDays = Number(req.nextUrl.searchParams.get("olderThanDays") ?? "0");
+
+  const where: {
+    outcome?: { not: string };
+    createdAt?: { lt: Date };
+  } = {};
+
+  if (!all) {
+    where.outcome = { not: "pending" };
+  }
+  if (olderThanDays > 0) {
+    where.createdAt = { lt: new Date(Date.now() - olderThanDays * 86400_000) };
+  }
+
+  const result = await prisma.orderLog.deleteMany({
+    where: Object.keys(where).length > 0 ? where : undefined,
+  });
+
+  return NextResponse.json({ ok: true, deleted: result.count });
+}

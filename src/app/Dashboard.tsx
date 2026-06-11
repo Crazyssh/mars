@@ -112,6 +112,24 @@ export default function Dashboard({ user }: { user: User }) {
     }
   }, []);
 
+  // ---------- Hapus history (yang udah selesai, pending dibiarkan) ----------
+  const clearHistory = useCallback(async () => {
+    if (!confirm("Hapus semua riwayat order yang sudah selesai? Order yang masih PENDING tidak dihapus.")) {
+      return;
+    }
+    setHistoryLoading(true);
+    try {
+      const res = await fetch("/api/history?finishedOnly=1", { method: "DELETE" });
+      if (res.ok) {
+        const data = await res.json();
+        await fetchHistory();
+        alert(`${data.deleted} riwayat dihapus.`);
+      }
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [fetchHistory]);
+
   useEffect(() => {
     fetchHistory();
   }, [fetchHistory]);
@@ -458,13 +476,22 @@ export default function Dashboard({ user }: { user: User }) {
         <aside className="card max-h-[600px] overflow-auto">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-semibold text-sm">Riwayat</h2>
-            <button
-              onClick={fetchHistory}
-              className="text-xs text-primary hover:underline"
-              disabled={historyLoading}
-            >
-              {historyLoading ? "..." : "Refresh"}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={clearHistory}
+                className="text-xs text-red-600 hover:underline"
+                disabled={historyLoading || history.length === 0}
+              >
+                Hapus
+              </button>
+              <button
+                onClick={fetchHistory}
+                className="text-xs text-primary hover:underline"
+                disabled={historyLoading}
+              >
+                {historyLoading ? "..." : "Refresh"}
+              </button>
+            </div>
           </div>
           {history.length === 0 ? (
             <p className="text-xs text-slate-500">Belum ada riwayat.</p>
