@@ -31,12 +31,8 @@ export async function GET(req: NextRequest) {
         priceIdr: Math.round(s.priceIdr * 0.6),
         stock: s.stock * 2,
       }))
-      // Khusus WA & TG: hide harga display di bawah 2200
-      .filter((s) => {
-        const isWaOrTg = s.service === "wa" || s.service === "tg";
-        if (isWaOrTg && s.priceIdr < 2200) return false;
-        return true;
-      });
+      // Tampilkan semua (WA/TG semua harga), kecuali yang stok habis
+      .filter((s) => s.stock > 0);
     return NextResponse.json({ data, total: data.length });
   } catch (e) {
     return NextResponse.json(

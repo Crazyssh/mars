@@ -60,14 +60,6 @@ export async function POST(req: NextRequest) {
     const targetPrice = parseHarga(requestedInfo.harga);
     const displayPrice = Math.round(targetPrice * 0.6);
 
-    // Block WA & TG kalau harga display di bawah 2200 (konsisten dengan filter list)
-    if (
-      (serviceCode === "wa" || serviceCode === "tg") &&
-      displayPrice < 2200
-    ) {
-      return NextResponse.json(STOCK_ERROR, { status: 409 });
-    }
-
     // Cari semua operator yang harganya sama (yg stock > 0)
     const candidates = findOperatorsAtSamePrice(
       response,
