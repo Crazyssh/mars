@@ -4,11 +4,17 @@ import { useCallback, useEffect, useState } from "react";
 
 interface HealthCheck {
   at: string;
-  ttfbMs: number;
-  totalMs: number;
-  httpCode: number;
+  provider: string;
+  durationMs: number;
   ok: boolean;
   error?: string;
+}
+
+interface ProviderStat {
+  ok: number;
+  fail: number;
+  uptimePct: number;
+  lastOk: boolean | null;
 }
 
 interface Stats {
@@ -16,7 +22,8 @@ interface Stats {
   okCount: number;
   failCount: number;
   uptimePct: number;
-  ttfb: { min: number; max: number; avg: number; p95: number } | null;
+  duration: { min: number; max: number; avg: number; p95: number } | null;
+  perProvider: Record<string, ProviderStat>;
   distribution: { label: string; count: number }[];
 }
 
@@ -29,7 +36,6 @@ interface HealthData {
 export default function AdminHealth() {
   const [data, setData] = useState<HealthData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [pinging, setPinging] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   const load = useCallback(async () => {
@@ -48,21 +54,11 @@ export default function AdminHealth() {
 
   useEffect(() => {
     if (!autoRefresh) return;
-    const interval = setInterval(load, 10_000);
+    const interval = setInterval(load, 8_000);
     return () => clearInterval(interval);
   }, [autoRefresh, load]);
 
-  async function manualPing() {
-    setPinging(true);
-    try {
-      await fetch("/api/admin/health", { method: "POST" });
-      await load();
-    } finally {
-      setPinging(false);
-    }
-  }
-
-  function ttfbColor(ms: number): string {
+  function durColor(ms: number): string {
     if (ms < 0) return "text-red-600";
     if (ms < 1000) return "text-green-600";
     if (ms < 5000) return "text-amber-600";
@@ -78,7 +74,7 @@ export default function AdminHealth() {
   }
 
   function fmtMs(ms: number): string {
-    if (ms < 0) return "timeout";
+    if (ms < 0) return "fail";
     if (ms < 1000) return `${ms}ms`;
     return `${(ms / 1000).toFixed(2)}s`;
   }
@@ -101,28 +97,19 @@ export default function AdminHealth() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        {/* Controls */}
         <div className="flex items-center justify-between flex-wrap gap-2">
           <p className="text-xs text-slate-500">
-            Auto-ping provider tiap 10 detik. Klik tombol untuk ping manual sekarang.
+            Status diambil dari hasil poller (tiap 8 detik). Poller sukses = UP,
+            gagal = DOWN. Gak ada ping terpisah.
           </p>
-          <div className="flex items-center gap-3">
-            <label className="text-xs flex items-center gap-1.5">
-              <input
-                type="checkbox"
-                checked={autoRefresh}
-                onChange={(e) => setAutoRefresh(e.target.checked)}
-              />
-              Auto-refresh
-            </label>
-            <button
-              onClick={manualPing}
-              disabled={pinging}
-              className="btn btn-primary text-xs"
-            >
-              {pinging ? "Pinging..." : "🔄 Ping sekarang"}
-            </button>
-          </div>
+          <label className="text-xs flex items-center gap-1.5">
+            <input
+              type="checkbox"
+              checked={autoRefresh}
+              onChange={(e) => setAutoRefresh(e.target.checked)}
+            />
+            Auto-refresh
+          </label>
         </div>
 
         {loading ? (
@@ -130,12 +117,12 @@ export default function AdminHealth() {
         ) : !data || data.history.length === 0 ? (
           <div className="card">
             <p className="text-sm text-slate-500">
-              Belum ada data. Klik &quot;Ping sekarang&quot; atau tunggu auto-ping.
+              Belum ada data. Tunggu poller jalan (beberapa detik setelah server start).
             </p>
           </div>
         ) : (
           <>
-            {/* Summary cards */}
+            {/* Summary */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="card !p-3">
                 <div className="text-[10px] text-slate-500 uppercase">Status</div>
@@ -143,7 +130,9 @@ export default function AdminHealth() {
                   {data.last?.ok ? "● UP" : "● DOWN"}
                 </div>
                 {data.last && (
-                  <div className="text-[10px] text-slate-400 mt-0.5">{fmtTime(data.last.at)}</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">
+                    {data.last.provider} · {fmtTime(data.last.at)}
+                  </div>
                 )}
               </div>
               <div className="card !p-3">
@@ -152,33 +141,60 @@ export default function AdminHealth() {
                   {stats!.uptimePct}%
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">
-                  {stats!.okCount}/{stats!.totalChecks} ok
+                  {stats!.okCount}/{stats!.totalChecks}
                 </div>
               </div>
               <div className="card !p-3">
-                <div className="text-[10px] text-slate-500 uppercase">Avg TTFB</div>
-                <div className={`text-xl font-bold mt-1 ${stats!.ttfb ? ttfbColor(stats!.ttfb.avg) : ""}`}>
-                  {stats!.ttfb ? fmtMs(stats!.ttfb.avg) : "-"}
+                <div className="text-[10px] text-slate-500 uppercase">Avg Durasi</div>
+                <div className={`text-xl font-bold mt-1 ${stats!.duration ? durColor(stats!.duration.avg) : ""}`}>
+                  {stats!.duration ? fmtMs(stats!.duration.avg) : "-"}
                 </div>
               </div>
               <div className="card !p-3">
-                <div className="text-[10px] text-slate-500 uppercase">P95 TTFB</div>
-                <div className={`text-xl font-bold mt-1 ${stats!.ttfb ? ttfbColor(stats!.ttfb.p95) : ""}`}>
-                  {stats!.ttfb ? fmtMs(stats!.ttfb.p95) : "-"}
+                <div className="text-[10px] text-slate-500 uppercase">P95 Durasi</div>
+                <div className={`text-xl font-bold mt-1 ${stats!.duration ? durColor(stats!.duration.p95) : ""}`}>
+                  {stats!.duration ? fmtMs(stats!.duration.p95) : "-"}
                 </div>
               </div>
             </div>
 
-            {/* Min/Max + distribution */}
+            {/* Per provider */}
+            <div className="card">
+              <h2 className="font-semibold text-sm mb-3">Status per Provider</h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {(["v1", "v2", "v3", "v4"] as const).map((p) => {
+                  const ps = stats!.perProvider[p];
+                  const total = ps.ok + ps.fail;
+                  return (
+                    <div key={p} className="border border-slate-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono font-bold text-sm">{p.toUpperCase()}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${ps.lastOk === null ? "bg-slate-100 text-slate-500" : ps.lastOk ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                          {ps.lastOk === null ? "—" : ps.lastOk ? "UP" : "DOWN"}
+                        </span>
+                      </div>
+                      <div className={`text-lg font-bold mt-1 ${ps.uptimePct >= 90 ? "text-green-600" : ps.uptimePct >= 50 ? "text-amber-600" : total === 0 ? "text-slate-400" : "text-red-600"}`}>
+                        {total > 0 ? `${ps.uptimePct}%` : "—"}
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        {ps.ok} ok / {ps.fail} fail
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Distribution + range */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="card">
-                <h2 className="font-semibold text-sm mb-2">TTFB Range</h2>
-                {stats!.ttfb ? (
+                <h2 className="font-semibold text-sm mb-2">Durasi Range</h2>
+                {stats!.duration ? (
                   <div className="space-y-1 text-sm">
-                    <div className="flex justify-between"><span className="text-slate-500">Min</span><span className={`font-mono ${ttfbColor(stats!.ttfb.min)}`}>{fmtMs(stats!.ttfb.min)}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-500">Avg</span><span className={`font-mono ${ttfbColor(stats!.ttfb.avg)}`}>{fmtMs(stats!.ttfb.avg)}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-500">P95</span><span className={`font-mono ${ttfbColor(stats!.ttfb.p95)}`}>{fmtMs(stats!.ttfb.p95)}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-500">Max</span><span className={`font-mono ${ttfbColor(stats!.ttfb.max)}`}>{fmtMs(stats!.ttfb.max)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Min</span><span className={`font-mono ${durColor(stats!.duration.min)}`}>{fmtMs(stats!.duration.min)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Avg</span><span className={`font-mono ${durColor(stats!.duration.avg)}`}>{fmtMs(stats!.duration.avg)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">P95</span><span className={`font-mono ${durColor(stats!.duration.p95)}`}>{fmtMs(stats!.duration.p95)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Max</span><span className={`font-mono ${durColor(stats!.duration.max)}`}>{fmtMs(stats!.duration.max)}</span></div>
                   </div>
                 ) : (
                   <p className="text-xs text-slate-400">Belum ada data sukses.</p>
@@ -186,7 +202,7 @@ export default function AdminHealth() {
               </div>
 
               <div className="card">
-                <h2 className="font-semibold text-sm mb-2">Distribusi Latency</h2>
+                <h2 className="font-semibold text-sm mb-2">Distribusi Durasi</h2>
                 <ul className="space-y-1.5 text-xs">
                   {stats!.distribution.map((d) => (
                     <li key={d.label}>
@@ -206,7 +222,7 @@ export default function AdminHealth() {
               </div>
             </div>
 
-            {/* History table */}
+            {/* History */}
             <div className="card">
               <h2 className="font-semibold text-sm mb-3">History ({data.history.length})</h2>
               <div className="overflow-x-auto max-h-[400px]">
@@ -214,24 +230,22 @@ export default function AdminHealth() {
                   <thead className="text-[10px] uppercase text-slate-500 border-b sticky top-0 bg-white">
                     <tr>
                       <th className="text-left py-2 pr-3">Waktu</th>
+                      <th className="text-left py-2 pr-3">Provider</th>
                       <th className="text-left py-2 pr-3">Status</th>
-                      <th className="text-left py-2 pr-3">HTTP</th>
-                      <th className="text-left py-2 pr-3">TTFB</th>
-                      <th className="text-left py-2 pr-3">Total</th>
+                      <th className="text-left py-2 pr-3">Durasi</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.history.map((h, i) => (
                       <tr key={i} className="border-b last:border-b-0">
                         <td className="py-1.5 pr-3 font-mono">{fmtTime(h.at)}</td>
+                        <td className="py-1.5 pr-3 font-mono">{h.provider}</td>
                         <td className="py-1.5 pr-3">
                           <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${h.ok ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
                             {h.ok ? "UP" : "DOWN"}
                           </span>
                         </td>
-                        <td className="py-1.5 pr-3 font-mono">{h.httpCode || "-"}</td>
-                        <td className={`py-1.5 pr-3 font-mono ${ttfbColor(h.ttfbMs)}`}>{fmtMs(h.ttfbMs)}</td>
-                        <td className="py-1.5 pr-3 font-mono text-slate-500">{fmtMs(h.totalMs)}</td>
+                        <td className={`py-1.5 pr-3 font-mono ${durColor(h.durationMs)}`}>{fmtMs(h.durationMs)}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -9,9 +9,10 @@ import { mars3 } from "./mars3";
 import { mars4 } from "./mars4";
 import { prisma } from "./prisma";
 import { syncOrderFromLive } from "./order-sync";
+import { recordHealth } from "./health";
 import type { HistoryOrder } from "./mars";
 
-const INTERVAL_MS = 5_000;
+const INTERVAL_MS = 8_000;
 const PENDING_TIMEOUT_MS = 22 * 60 * 1000;
 const SKIP_TICKS_ON_429 = 7;
 
@@ -32,16 +33,25 @@ declare global {
 async function fetchProviderHistory(
   provider: Provider
 ): Promise<HistoryOrder[] | null> {
+  const started = Date.now();
   try {
-    if (provider === "v1") return await mars.fetchHistoryFresh(1, 100);
-    if (provider === "v2") return await mars2.fetchHistoryFresh(1, 100);
-    if (provider === "v3") return await mars3.fetchHistoryFresh(1, 100);
-    return await mars4.fetchHistoryFresh(1, 100);
+    let result: HistoryOrder[];
+    if (provider === "v1") result = await mars.fetchHistoryFresh(1, 100);
+    else if (provider === "v2") result = await mars2.fetchHistoryFresh(1, 100);
+    else if (provider === "v3") result = await mars3.fetchHistoryFresh(1, 100);
+    else result = await mars4.fetchHistoryFresh(1, 100);
+    // Sukses → provider UP, catat durasi
+    recordHealth(provider, true, Date.now() - started);
+    return result;
   } catch (e) {
+    const msg = (e as Error).message;
     if (e instanceof MarsError && e.statusCode === 429) {
+      // Rate-limited: catat sebagai down (provider nolak)
+      recordHealth(provider, false, -1, "rate limited (429)");
       return null;
     }
-    console.warn(`[poller] ${provider} fetch failed:`, (e as Error).message);
+    recordHealth(provider, false, -1, msg);
+    console.warn(`[poller] ${provider} fetch failed:`, msg);
     return [];
   }
 }
@@ -89,7 +99,12 @@ async function tick(state: {
     select: { id: true, orderId: true, createdAt: true, provider: true },
   });
 
-  if (allPending.length === 0) return;
+  // Kalau gak ada pending sama sekali, tetap fetch v1 sekali untuk health
+  // check (biar status provider keupdate walau lagi sepi order).
+  if (allPending.length === 0) {
+    await fetchProviderHistory("v1");
+    return;
+  }
 
   const grouped: Record<Provider, typeof allPending> = {
     v1: allPending.filter((p) => p.provider === "v1"),
