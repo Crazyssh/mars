@@ -37,10 +37,10 @@ async function fetchProviderHistory(
   const started = Date.now();
   try {
     let result: HistoryOrder[];
-    if (provider === "v1") result = await mars.fetchHistoryFresh(1, 100);
-    else if (provider === "v2") result = await mars2.fetchHistoryFresh(1, 100);
-    else if (provider === "v3") result = await mars3.fetchHistoryFresh(1, 100);
-    else result = await mars4.fetchHistoryFresh(1, 100);
+    if (provider === "v1") result = await mars.fetchHistoryFresh(1, 50);
+    else if (provider === "v2") result = await mars2.fetchHistoryFresh(1, 50);
+    else if (provider === "v3") result = await mars3.fetchHistoryFresh(1, 50);
+    else result = await mars4.fetchHistoryFresh(1, 50);
     // Sukses → provider UP, catat durasi
     recordHealth(provider, true, Date.now() - started);
     return result;
