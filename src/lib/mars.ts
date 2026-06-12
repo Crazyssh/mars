@@ -431,7 +431,7 @@ class MarsClient {
     // TTL 7s < poller interval 10s → poller selalu refresh, semua call lain
     // baca cache.
     if (page === 1 && limit === 100) {
-      return withCache(CACHE_KEYS.HISTORY_PAGE_1, 7_000, () =>
+      return withCache(CACHE_KEYS.HISTORY_PAGE_1, 2_000, () =>
         this.fetchHistory(page, limit)
       );
     }
@@ -443,7 +443,7 @@ class MarsClient {
     const data = await this.fetchHistory(page, limit);
     if (page === 1 && limit === 100) {
       // Update cache supaya call lain dapet data fresh
-      setCacheValue(CACHE_KEYS.HISTORY_PAGE_1, data, 7_000);
+      setCacheValue(CACHE_KEYS.HISTORY_PAGE_1, data, 2_000);
     }
     return data;
   }

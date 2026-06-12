@@ -140,7 +140,7 @@ export default function Dashboard({ user }: { user: User }) {
   // perubahan dalam 1-2 client tick.
   useEffect(() => {
     const hasPending = history.some((h) => h.status === "PENDING" && !h.otp);
-    const interval = setInterval(fetchHistory, hasPending ? 5_000 : 20_000);
+    const interval = setInterval(fetchHistory, hasPending ? 3_000 : 20_000);
     return () => clearInterval(interval);
   }, [history, fetchHistory]);
 

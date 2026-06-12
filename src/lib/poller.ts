@@ -11,7 +11,7 @@ import { prisma } from "./prisma";
 import { syncOrderFromLive } from "./order-sync";
 import type { HistoryOrder } from "./mars";
 
-const INTERVAL_MS = 10_000;
+const INTERVAL_MS = 3_000;
 const PENDING_TIMEOUT_MS = 22 * 60 * 1000;
 const SKIP_TICKS_ON_429 = 7;
 

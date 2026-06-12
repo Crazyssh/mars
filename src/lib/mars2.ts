@@ -299,7 +299,7 @@ class Mars2Client {
 
   async getHistory(page = 1, limit = 100): Promise<HistoryOrder[]> {
     if (page === 1 && limit === 100) {
-      return withCache(CACHE_KEYS.V2_HISTORY_PAGE_1, 7_000, () =>
+      return withCache(CACHE_KEYS.V2_HISTORY_PAGE_1, 2_000, () =>
         this.fetchHistory(page, limit)
       );
     }
@@ -309,7 +309,7 @@ class Mars2Client {
   async fetchHistoryFresh(page = 1, limit = 100): Promise<HistoryOrder[]> {
     const data = await this.fetchHistory(page, limit);
     if (page === 1 && limit === 100) {
-      setCacheValue(CACHE_KEYS.V2_HISTORY_PAGE_1, data, 7_000);
+      setCacheValue(CACHE_KEYS.V2_HISTORY_PAGE_1, data, 2_000);
     }
     return data;
   }
