@@ -10,6 +10,7 @@ import { mars4 } from "./mars4";
 import { prisma } from "./prisma";
 import { syncOrderFromLive } from "./order-sync";
 import { recordHealth } from "./health";
+import { config } from "./config";
 import type { HistoryOrder } from "./mars";
 
 const INTERVAL_MS = 8_000;
@@ -99,10 +100,13 @@ async function tick(state: {
     select: { id: true, orderId: true, createdAt: true, provider: true },
   });
 
-  // Kalau gak ada pending sama sekali, tetap fetch v1 sekali untuk health
-  // check (biar status provider keupdate walau lagi sepi order).
+  const enabled = config.enabledProviders;
+
+  // Kalau gak ada pending sama sekali, tetap fetch 1 provider enabled untuk
+  // health check (biar status keupdate walau lagi sepi order).
   if (allPending.length === 0) {
-    await fetchProviderHistory("v1");
+    const first = (enabled[0] ?? "v1") as Provider;
+    await fetchProviderHistory(first);
     return;
   }
 
@@ -113,9 +117,9 @@ async function tick(state: {
     v4: allPending.filter((p) => p.provider === "v4"),
   };
 
-  // Sequential per provider (bukan paralel) biar gak spawn 4 curl bareng —
-  // mengurangi koneksi drop / rate-limit dari provider.
+  // Sequential per provider. Cuma proses provider yang ENABLED di server ini.
   for (const provider of ["v1", "v2", "v3", "v4"] as const) {
+    if (!enabled.includes(provider)) continue;
     const pending = grouped[provider];
     if (pending.length === 0) continue;
     if (state.tickCount < state.skipUntilTick[provider]) continue;
@@ -139,7 +143,7 @@ export function startPoller(): void {
   }
 
   console.log(
-    `[poller] starting (interval=${INTERVAL_MS}ms, providers=v1+v2+v3+v4)`
+    `[poller] starting (interval=${INTERVAL_MS}ms, providers=${config.enabledProviders.join("+")})`
   );
   const state = {
     running: false,

@@ -13,6 +13,9 @@ const schema = z.object({
     .default(
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
     ),
+  // Provider mana yang di-poll di server ini. Comma-separated.
+  // Default semua. VPS khusus v4: set ENABLED_PROVIDERS=v4
+  ENABLED_PROVIDERS: z.string().default("v1,v2,v3,v4"),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -29,6 +32,9 @@ const env = parsed.data;
 export const config = {
   sessionSecret: env.SESSION_SECRET,
   databaseUrl: env.DATABASE_URL,
+  enabledProviders: env.ENABLED_PROVIDERS.split(",")
+    .map((p) => p.trim().toLowerCase())
+    .filter((p) => ["v1", "v2", "v3", "v4"].includes(p)),
   mars: {
     baseUrl: env.MARS_BASE_URL.replace(/\/$/, ""),
     phpsessid: env.MARS_PHPSESSID,
