@@ -11,7 +11,7 @@ import { prisma } from "./prisma";
 import { syncOrderFromLive } from "./order-sync";
 import type { HistoryOrder } from "./mars";
 
-const INTERVAL_MS = 3_000;
+const INTERVAL_MS = 5_000;
 const PENDING_TIMEOUT_MS = 22 * 60 * 1000;
 const SKIP_TICKS_ON_429 = 7;
 
@@ -98,29 +98,23 @@ async function tick(state: {
     v4: allPending.filter((p) => p.provider === "v4"),
   };
 
-  const tasks: Promise<void>[] = [];
+  // Sequential per provider (bukan paralel) biar gak spawn 4 curl bareng —
+  // mengurangi koneksi drop / rate-limit dari provider.
   for (const provider of ["v1", "v2", "v3", "v4"] as const) {
     const pending = grouped[provider];
     if (pending.length === 0) continue;
     if (state.tickCount < state.skipUntilTick[provider]) continue;
 
-    tasks.push(
-      syncProvider(provider, pending).then((r) => {
-        if (r.rateLimited) {
-          state.skipUntilTick[provider] = state.tickCount + SKIP_TICKS_ON_429;
-          console.warn(
-            `[poller] ${provider} rate-limited, back off ${SKIP_TICKS_ON_429} ticks`
-          );
-        } else if (r.updated > 0) {
-          console.log(
-            `[poller] ${provider} synced ${r.updated}/${pending.length}`
-          );
-        }
-      })
-    );
+    const r = await syncProvider(provider, pending);
+    if (r.rateLimited) {
+      state.skipUntilTick[provider] = state.tickCount + SKIP_TICKS_ON_429;
+      console.warn(
+        `[poller] ${provider} rate-limited, back off ${SKIP_TICKS_ON_429} ticks`
+      );
+    } else if (r.updated > 0) {
+      console.log(`[poller] ${provider} synced ${r.updated}/${pending.length}`);
+    }
   }
-
-  await Promise.all(tasks);
 }
 
 export function startPoller(): void {
