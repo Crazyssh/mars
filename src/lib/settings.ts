@@ -33,6 +33,8 @@ export function invalidateCache(key?: string): void {
 export const SETTING_KEYS = {
   MARS_PHPSESSID: "mars.phpsessid",
   MARS_CF_CLEARANCE: "mars.cf_clearance",
+  MARS_USER_ID: "mars.user_id",
+  MARS_EXPIRES_AT: "mars.expires_at",
   MARS2_PHPSESSID: "mars2.phpsessid",
   MARS2_USER_ID: "mars2.user_id",
   MARS2_EXPIRES_AT: "mars2.expires_at",

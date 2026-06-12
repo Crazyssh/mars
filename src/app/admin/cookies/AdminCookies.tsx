@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 interface CookiesInfo {
-  v1: { phpsessid: string; cfClearance: string; phpsessidLen: number; cfClearanceLen: number };
+  v1: { phpsessid: string; userId: string; expiresAt: string; phpsessidLen: number };
   v2: { phpsessid: string; userId: string; expiresAt: string; phpsessidLen: number };
   v3: { phpsessid: string; userId: string; expiresAt: string; phpsessidLen: number };
   v4: { phpsessid: string; userId: string; expiresAt: string; phpsessidLen: number };
@@ -15,7 +15,8 @@ export default function AdminCookies() {
   const [msg, setMsg] = useState<{ type: "ok" | "err" | "warn"; text: string } | null>(null);
 
   const [v1Phpsessid, setV1Phpsessid] = useState("");
-  const [v1CfClearance, setV1CfClearance] = useState("");
+  const [v1UserId, setV1UserId] = useState("");
+  const [v1ExpiresAt, setV1ExpiresAt] = useState("");
   const [v1Saving, setV1Saving] = useState(false);
 
   const [v2Phpsessid, setV2Phpsessid] = useState("");
@@ -48,25 +49,7 @@ export default function AdminCookies() {
     load();
   }, [load]);
 
-  async function saveV1(e: React.FormEvent) {
-    e.preventDefault();
-    setV1Saving(true);
-    setMsg(null);
-    try {
-      const res = await fetch("/api/admin/cookies", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider: "v1", phpsessid: v1Phpsessid.trim(), cfClearance: v1CfClearance.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setMsg({ type: "err", text: data.error ?? "Gagal save V1" }); return; }
-      setMsg({ type: data.warning ? "warn" : "ok", text: data.warning ? data.error : "✅ V1 cookies updated!" });
-      setV1Phpsessid(""); setV1CfClearance(""); load();
-    } catch { setMsg({ type: "err", text: "Network error" }); }
-    finally { setV1Saving(false); }
-  }
-
-  async function saveProvider(provider: "v2" | "v3" | "v4", phpsessid: string, userId: string, expiresAt: string, setSaving: (b: boolean) => void, reset: () => void) {
+  async function saveProvider(provider: "v1" | "v2" | "v3" | "v4", phpsessid: string, userId: string, expiresAt: string, setSaving: (b: boolean) => void, reset: () => void) {
     setSaving(true);
     setMsg(null);
     try {
@@ -108,18 +91,20 @@ export default function AdminCookies() {
         <section className="card space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold">📦 Provider V1 (orderv3)</h2>
-            <span className="text-xs text-slate-500">PHPSESSID + cf_clearance</span>
+            <span className="text-xs text-slate-500">PHPSESSID + user_id + expires_at</span>
           </div>
           {loading ? <p className="text-xs text-slate-500">Loading...</p> : !info ? <p className="text-xs text-slate-500">Gagal load.</p> : (
             <dl className="space-y-1 text-sm">
               <div className="flex justify-between"><dt className="text-slate-500">PHPSESSID</dt><dd className="font-mono text-xs">{info.v1.phpsessid} <span className="text-slate-400">({info.v1.phpsessidLen})</span></dd></div>
-              <div className="flex justify-between"><dt className="text-slate-500">cf_clearance</dt><dd className="font-mono text-xs">{info.v1.cfClearance} <span className="text-slate-400">({info.v1.cfClearanceLen})</span></dd></div>
+              <div className="flex justify-between"><dt className="text-slate-500">user_id</dt><dd className="font-mono text-xs">{info.v1.userId}</dd></div>
+              <div className="flex justify-between"><dt className="text-slate-500">expires_at</dt><dd className="font-mono text-xs">{info.v1.expiresAt}{info.v1.expiresAt !== "(empty)" && <span className="text-slate-400 ml-1">({new Date(Number(info.v1.expiresAt) * 1000).toLocaleDateString("id-ID")})</span>}</dd></div>
             </dl>
           )}
-          <form onSubmit={saveV1} className="space-y-2 border-t pt-3">
+          <form onSubmit={(e) => { e.preventDefault(); saveProvider("v1", v1Phpsessid, v1UserId, v1ExpiresAt, setV1Saving, () => { setV1Phpsessid(""); setV1UserId(""); setV1ExpiresAt(""); }); }} className="space-y-2 border-t pt-3">
             <input type="text" placeholder="PHPSESSID baru" value={v1Phpsessid} onChange={(e) => setV1Phpsessid(e.target.value)} className="input font-mono text-xs" />
-            <textarea placeholder="cf_clearance baru" value={v1CfClearance} onChange={(e) => setV1CfClearance(e.target.value)} className="input font-mono text-xs min-h-[80px]" />
-            <button type="submit" disabled={v1Saving || !v1Phpsessid || !v1CfClearance} className="btn btn-primary text-sm">{v1Saving ? "Saving..." : "Save V1 & Test"}</button>
+            <input type="text" placeholder="user_id" value={v1UserId} onChange={(e) => setV1UserId(e.target.value)} className="input font-mono text-xs" />
+            <input type="text" placeholder="expires_at (unix timestamp)" value={v1ExpiresAt} onChange={(e) => setV1ExpiresAt(e.target.value)} className="input font-mono text-xs" />
+            <button type="submit" disabled={v1Saving || !v1Phpsessid || !v1UserId || !v1ExpiresAt} className="btn btn-primary text-sm">{v1Saving ? "Saving..." : "Save V1 & Test"}</button>
           </form>
         </section>
 
@@ -191,9 +176,8 @@ export default function AdminCookies() {
           <ol className="list-decimal list-inside space-y-1">
             <li>Login ke situs provider di browser</li>
             <li>F12 → tab <b>Application</b> → <b>Cookies</b></li>
-            <li>V1: copy <code>PHPSESSID</code> + <code>cf_clearance</code></li>
-            <li>V2 / V3: copy <code>PHPSESSID</code> + <code>user_id</code> + <code>expires_at</code></li>
-            <li>Paste ke form yang sesuai → Save</li>
+            <li>Copy <code>PHPSESSID</code> + <code>user_id</code> + <code>expires_at</code></li>
+            <li>Paste ke form provider yang sesuai → Save</li>
           </ol>
           <p className="pt-2 italic text-slate-500">
             Tiap provider akun terpisah, simpan sendiri-sendiri. Update salah satu gak ganggu yang lain.

@@ -180,27 +180,34 @@ class MarsClient {
     );
   }
 
-  async getCfClearance(): Promise<string> {
-    return (
-      (await getSetting(SETTING_KEYS.MARS_CF_CLEARANCE)) ??
-      config.mars.cfClearance
-    );
+  async getUserId(): Promise<string> {
+    return (await getSetting(SETTING_KEYS.MARS_USER_ID)) ?? "";
+  }
+
+  async getExpiresAt(): Promise<string> {
+    return (await getSetting(SETTING_KEYS.MARS_EXPIRES_AT)) ?? "";
   }
 
   /**
    * Update cookies di DB. Live — request berikutnya pakai value baru.
    */
-  async setCookies(phpsessid: string, cfClearance: string): Promise<void> {
+  async setCookies(
+    phpsessid: string,
+    userId: string,
+    expiresAt: string
+  ): Promise<void> {
     await setSetting(SETTING_KEYS.MARS_PHPSESSID, phpsessid);
-    await setSetting(SETTING_KEYS.MARS_CF_CLEARANCE, cfClearance);
+    await setSetting(SETTING_KEYS.MARS_USER_ID, userId);
+    await setSetting(SETTING_KEYS.MARS_EXPIRES_AT, expiresAt);
   }
 
   private async cookieHeader(): Promise<string> {
-    const [phpsessid, cfClearance] = await Promise.all([
+    const [phpsessid, userId, expiresAt] = await Promise.all([
       this.getPhpsessid(),
-      this.getCfClearance(),
+      this.getUserId(),
+      this.getExpiresAt(),
     ]);
-    return `PHPSESSID=${phpsessid}; cf_clearance=${cfClearance}`;
+    return `PHPSESSID=${phpsessid}; user_id=${userId}; expires_at=${expiresAt}`;
   }
 
   get countries(): MarsCountry[] {

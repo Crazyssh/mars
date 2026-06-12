@@ -11,12 +11,12 @@ export async function GET() {
   if (auth.error) return auth.error;
 
   const [
-    v1Sess, v1Cf,
+    v1Sess, v1User, v1Exp,
     v2Sess, v2User, v2Exp,
     v3Sess, v3User, v3Exp,
     v4Sess, v4User, v4Exp,
   ] = await Promise.all([
-    mars.getPhpsessid(), mars.getCfClearance(),
+    mars.getPhpsessid(), mars.getUserId(), mars.getExpiresAt(),
     mars2.getPhpsessid(), mars2.getUserId(), mars2.getExpiresAt(),
     mars3.getPhpsessid(), mars3.getUserId(), mars3.getExpiresAt(),
     mars4.getPhpsessid(), mars4.getUserId(), mars4.getExpiresAt(),
@@ -24,7 +24,7 @@ export async function GET() {
 
   return NextResponse.json({
     data: {
-      v1: { phpsessid: maskMiddle(v1Sess), cfClearance: maskMiddle(v1Cf), phpsessidLen: v1Sess.length, cfClearanceLen: v1Cf.length },
+      v1: { phpsessid: maskMiddle(v1Sess), userId: v1User || "(empty)", expiresAt: v1Exp || "(empty)", phpsessidLen: v1Sess.length },
       v2: { phpsessid: maskMiddle(v2Sess), userId: v2User || "(empty)", expiresAt: v2Exp || "(empty)", phpsessidLen: v2Sess.length },
       v3: { phpsessid: maskMiddle(v3Sess), userId: v3User || "(empty)", expiresAt: v3Exp || "(empty)", phpsessidLen: v3Sess.length },
       v4: { phpsessid: maskMiddle(v4Sess), userId: v4User || "(empty)", expiresAt: v4Exp || "(empty)", phpsessidLen: v4Sess.length },
@@ -32,18 +32,13 @@ export async function GET() {
   });
 }
 
-const v1Schema = z.object({
-  provider: z.literal("v1"),
-  phpsessid: z.string().min(20, "PHPSESSID terlalu pendek"),
-  cfClearance: z.string().min(50, "cf_clearance terlalu pendek (biasanya 200+)"),
-});
-
 const userExpSchema = z.object({
   phpsessid: z.string().min(20, "PHPSESSID terlalu pendek"),
   userId: z.string().min(1, "user_id required"),
   expiresAt: z.string().min(1, "expires_at required"),
 });
 
+const v1Schema = userExpSchema.extend({ provider: z.literal("v1") });
 const v2Schema = userExpSchema.extend({ provider: z.literal("v2") });
 const v3Schema = userExpSchema.extend({ provider: z.literal("v3") });
 const v4Schema = userExpSchema.extend({ provider: z.literal("v4") });
@@ -63,19 +58,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (parsed.data.provider === "v1") {
-    const { phpsessid, cfClearance } = parsed.data;
-    await mars.setCookies(phpsessid.trim(), cfClearance.trim());
-    try { await mars.loadCountries(); }
-    catch (e) {
-      return NextResponse.json({ error: `V1 cookies disimpan tapi gagal test: ${(e as Error).message}`, warning: true }, { status: 200 });
-    }
-    return NextResponse.json({ ok: true, provider: "v1" });
-  }
-
   const { phpsessid, userId, expiresAt } = parsed.data;
   const provider = parsed.data.provider;
-  const client = provider === "v2" ? mars2 : provider === "v3" ? mars3 : mars4;
+  const client =
+    provider === "v1" ? mars :
+    provider === "v2" ? mars2 :
+    provider === "v3" ? mars3 : mars4;
 
   await client.setCookies(phpsessid.trim(), userId.trim(), expiresAt.trim());
   try { await client.loadCountries(); }
