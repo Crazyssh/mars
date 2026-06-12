@@ -247,7 +247,7 @@ class MarsClient {
       "-s",
       "-w", "\n%{http_code}",
       "--compressed",
-      "--max-time", "30",
+      "--max-time", "45",
       "--connect-timeout", "10",
       "--retry", "2",
       "--retry-delay", "2",
