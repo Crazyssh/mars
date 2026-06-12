@@ -56,6 +56,9 @@ export default function Dashboard({ user }: { user: User }) {
   const [servicesLoading, setServicesLoading] = useState(false);
   const [selectedService, setSelectedService] = useState<ServiceOption | null>(null);
 
+  const [operators, setOperators] = useState<string[]>([]);
+  const [selectedOperator, setSelectedOperator] = useState<string>("any");
+
   const [ordering, setOrdering] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
   const [bulkResult, setBulkResult] = useState<{ ok: number; failed: number } | null>(null);
@@ -83,10 +86,29 @@ export default function Dashboard({ user }: { user: User }) {
     if (!selectedCountry) {
       setServices([]);
       setSelectedService(null);
+      setOperators([]);
+      setSelectedOperator("any");
       return;
     }
     setServicesLoading(true);
     setSelectedService(null);
+    setSelectedOperator("any");
+    // Load operators (best-effort, gak blocking)
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/search/operators?country=${selectedCountry.id}`
+        );
+        const data = await res.json();
+        if (res.ok && Array.isArray(data.data) && data.data.length > 0) {
+          setOperators(data.data);
+        } else {
+          setOperators(["any"]);
+        }
+      } catch {
+        setOperators(["any"]);
+      }
+    })();
     (async () => {
       try {
         const res = await fetch(
@@ -226,6 +248,7 @@ export default function Dashboard({ user }: { user: User }) {
         body: JSON.stringify({
           countryId: selectedCountry.id,
           service: selectedService.code,
+          operator: selectedOperator,
         }),
       });
       const data = await res.json();
@@ -260,6 +283,7 @@ export default function Dashboard({ user }: { user: User }) {
     } else if (res.data) {
       setActive(res.data);
       setSelectedService(null);
+      setSelectedOperator("any");
       fetchHistory();
     }
     setOrdering(false);
@@ -292,6 +316,7 @@ export default function Dashboard({ user }: { user: User }) {
       setOrderError(`${failed} gagal: ${lastErr}`);
     }
     setSelectedService(null);
+    setSelectedOperator("any");
     fetchHistory();
     setOrdering(false);
   }
@@ -427,6 +452,25 @@ export default function Dashboard({ user }: { user: User }) {
                   </p>
                 )}
               </div>
+
+              {selectedCountry && operators.length > 1 && (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600 block">
+                    📡 Operator
+                  </label>
+                  <select
+                    value={selectedOperator}
+                    onChange={(e) => setSelectedOperator(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    {operators.map((op) => (
+                      <option key={op} value={op}>
+                        {op === "any" ? "Otomatis (any)" : op}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {bulkProgress && (
                 <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm text-blue-900">

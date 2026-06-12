@@ -284,13 +284,25 @@ export default function ApiDocs({ userName }: { userName: string }) {
           />
 
           <Endpoint
+            method="GET"
+            path="/api/v1/operators"
+            desc="List operator untuk countryId (khusus v1). 'any' = auto-pilih operator."
+            example={`curl -H "Authorization: Bearer ${exampleKey}" \\
+  "${baseUrl}/api/v1/operators?country=6"`}
+            response={`{
+  "data": ["any", "telkomsel", "indosat", "axis"],
+  "total": 4
+}`}
+          />
+
+          <Endpoint
             method="POST"
             path="/api/vN/order"
-            desc="Buat order baru."
+            desc="Buat order baru. Field operator opsional (khusus v1), default 'any'."
             example={`curl -X POST \\
   -H "Authorization: Bearer ${exampleKey}" \\
   -H "Content-Type: application/json" \\
-  -d '{"countryId": 6, "service": "wa"}' \\
+  -d '{"countryId": 6, "service": "wa", "operator": "any"}' \\
   ${baseUrl}/api/v1/order`}
             response={`{
   "data": {
@@ -298,6 +310,7 @@ export default function ApiDocs({ userName }: { userName: string }) {
     "number": "+628123456789",
     "service": "wa",
     "serviceName": "whatsapp",
+    "operator": "any",
     "country": "indonesia",
     "countryId": 6,
     "priceIdr": 2250,

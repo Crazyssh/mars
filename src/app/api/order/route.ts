@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 const schema = z.object({
   countryId: z.number().int().min(0),
   service: z.string().min(1),
+  operator: z.string().min(1).optional(),
 });
 
 const STOCK_ERROR = { error: "Stok habis", code: "OUT_OF_STOCK" };
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid params" }, { status: 400 });
   }
-  const { countryId, service } = parsed.data;
+  const { countryId, service, operator } = parsed.data;
 
   try {
     const services = await mars.listServices(countryId);
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
       countryId,
       service,
       serviceName: info.layanan,
-      operator: "any",
+      operator: operator ?? "any",
       namaNegara: country?.slug,
       priceIdr,
     });
