@@ -627,7 +627,7 @@ function ActiveOrderCard(props: {
 
       {!isDone && (
         <p className="text-xs text-slate-500">
-          ⏳ Auto-cek OTP tiap 3 detik. Min 2 menit baru bisa dibatalkan.
+          ⏳ Auto-cek OTP tiap 3 detik. Batalkan kapan aja (tergantung izin provider).
         </p>
       )}
 
@@ -657,8 +657,7 @@ function HistoryRow(props: {
     hour: "2-digit",
     minute: "2-digit",
   });
-  const ageSec = Math.floor(Date.now() / 1000) - h.orderTime;
-  const canCancel = h.status === "PENDING" && ageSec >= 120;
+  const canCancel = h.status === "PENDING";
   return (
     <li className="border border-slate-200 rounded-lg p-3 text-xs space-y-1">
       <div className="flex items-center justify-between">
@@ -699,17 +698,13 @@ function HistoryRow(props: {
           >
             Copy nomor
           </button>
-          {canCancel ? (
+          {canCancel && (
             <button
               onClick={props.onCancel}
               className="text-[10px] text-red-600 hover:underline"
             >
               Batalkan
             </button>
-          ) : (
-            <span className="text-[10px] text-slate-400">
-              Bisa cancel: {Math.max(0, 120 - ageSec)}s lagi
-            </span>
           )}
         </div>
       )}

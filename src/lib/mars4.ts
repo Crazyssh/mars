@@ -17,8 +17,10 @@ import { getSharedCfClearance, getDynamicUserAgent, refreshCfSession } from "./c
 import {
   MarsError,
   parseHarga,
+  parseCancelResponse,
   type HistoryOrder,
   type CreateOrderResult,
+  type CancelResult,
   type MarsCountry,
 } from "./mars";
 
@@ -421,14 +423,16 @@ class Mars4Client {
     }
   }
 
-  async cancelOrder(orderId: string): Promise<{ success: boolean; raw: unknown }> {
+  async cancelOrder(orderId: string): Promise<CancelResult> {
     const res = await this.request({
       method: "POST",
       path: "/orderv5",
       body: `cancel=${encodeURIComponent(orderId)}`,
     });
+    const { success, message } = parseCancelResponse(res.body, res.status === 200);
     return {
-      success: res.status === 200,
+      success: res.status === 200 && success,
+      message,
       raw: res.body.slice(0, 500),
     };
   }

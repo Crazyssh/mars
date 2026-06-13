@@ -65,6 +65,14 @@ export interface CreateOrderResult {
   errorMessage?: string;
 }
 
+export interface CancelResult {
+  /** true kalau provider konfirmasi order berhasil dibatalkan. */
+  success: boolean;
+  /** Pesan dari provider (kenapa gagal / konfirmasi sukses). */
+  message: string;
+  raw: unknown;
+}
+
 // ==================== ERROR ====================
 
 export class MarsError extends Error {
@@ -122,6 +130,90 @@ export function parseHarga(raw: string | number): number {
   const cleaned = raw.replace(/\./g, "").replace(/,/g, "").trim();
   const n = Number(cleaned);
   return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * Interpretasi response cancel dari provider.
+ *
+ * Provider balikin macem-macem format:
+ *   - JSON: { status: true/false, message: "..." } atau { success, msg, error }
+ *   - Teks polos: "Berhasil dibatalkan" / "Tidak bisa dibatalkan" / dll
+ *
+ * Heuristik: cek field status/success dulu, fallback ke kata kunci di teks.
+ * httpOk = apakah HTTP status 200.
+ */
+export function parseCancelResponse(
+  body: string,
+  httpOk: boolean
+): { success: boolean; message: string } {
+  const raw = (body ?? "").trim();
+  const parsed = parseJsonSafe<Record<string, unknown>>(raw);
+
+  const pickMsg = (o: Record<string, unknown>): string => {
+    for (const k of ["message", "msg", "pesan", "error", "ket", "keterangan"]) {
+      const v = o[k];
+      if (typeof v === "string" && v.trim()) return v.trim();
+    }
+    return "";
+  };
+
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    const msg = pickMsg(parsed) || raw.slice(0, 200);
+    for (const k of ["status", "success", "ok", "berhasil"]) {
+      const v = parsed[k];
+      if (typeof v === "boolean") {
+        return { success: v, message: msg || (v ? "Dibatalkan" : "Gagal dibatalkan") };
+      }
+      if (typeof v === "string") {
+        const low = v.toLowerCase();
+        if (low === "true" || low === "success" || low === "ok" || low === "1") {
+          return { success: true, message: msg || "Dibatalkan" };
+        }
+        if (low === "false" || low === "error" || low === "failed" || low === "0") {
+          return { success: false, message: msg || "Gagal dibatalkan" };
+        }
+      }
+      if (typeof v === "number") {
+        return { success: v === 1, message: msg || (v === 1 ? "Dibatalkan" : "Gagal dibatalkan") };
+      }
+    }
+    return classifyCancelText(msg || raw, httpOk);
+  }
+
+  return classifyCancelText(raw, httpOk);
+}
+
+function classifyCancelText(
+  text: string,
+  httpOk: boolean
+): { success: boolean; message: string } {
+  const low = text.toLowerCase();
+  const msg = text.slice(0, 200) || (httpOk ? "OK" : "Gagal");
+
+  const failKw = [
+    "tidak bisa",
+    "tidak dapat",
+    "gagal",
+    "belum bisa",
+    "tunggu",
+    "menit",
+    "sudah",
+    "cannot",
+    "failed",
+    "not allowed",
+    "error",
+    "masih",
+  ];
+  if (failKw.some((k) => low.includes(k))) {
+    return { success: false, message: msg };
+  }
+
+  const okKw = ["berhasil", "dibatalkan", "success", "cancel", "refund", "batal"];
+  if (okKw.some((k) => low.includes(k))) {
+    return { success: true, message: msg };
+  }
+
+  return { success: httpOk, message: msg };
 }
 
 export function formatRupiah(n: number): string {
@@ -442,14 +534,16 @@ class MarsClient {
     }
   }
 
-  async cancelOrder(orderId: string): Promise<{ success: boolean; raw: unknown }> {
+  async cancelOrder(orderId: string): Promise<CancelResult> {
     const res = await this.request({
       method: "POST",
       path: "/orderv3",
       body: `cancel=${encodeURIComponent(orderId)}`,
     });
+    const { success, message } = parseCancelResponse(res.body, res.status === 200);
     return {
-      success: res.status === 200,
+      success: res.status === 200 && success,
+      message,
       raw: res.body.slice(0, 500),
     };
   }
