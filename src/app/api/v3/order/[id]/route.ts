@@ -5,6 +5,8 @@ import { syncOrderFromLive, outcomeToStatus } from "@/lib/order-sync";
 import { getCachedValue, CACHE_KEYS } from "@/lib/live-cache";
 import type { HistoryOrder } from "@/lib/mars";
 
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/v3/order/:id
  * id = publicId 8-digit. Internal pake orderId raw provider.
@@ -25,7 +27,7 @@ export async function GET(
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
-  const cached = getCachedValue<HistoryOrder[]>(CACHE_KEYS.V3_HISTORY_PAGE_1);
+  const cached = getCachedValue<HistoryOrder[]>(CACHE_KEYS.HISTORY_PAGE_1);
   const live = cached?.find((o) => o.order_id === log.orderId);
   if (live) {
     await syncOrderFromLive(live).catch(() => undefined);
@@ -42,7 +44,7 @@ export async function GET(
         otp: fresh?.otp ?? (hasOtp ? live.otp : null),
         createdAt: live.order_time,
       },
-    });
+    }, { headers: { "Cache-Control": "no-store" } });
   }
 
   return NextResponse.json({
@@ -56,5 +58,5 @@ export async function GET(
       otp: log.otp ?? null,
       createdAt: Math.floor(log.createdAt.getTime() / 1000),
     },
-  });
+  }, { headers: { "Cache-Control": "no-store" } });
 }

@@ -5,6 +5,8 @@ import { syncOrderFromLive, outcomeToStatus } from "@/lib/order-sync";
 import { getCachedValue, CACHE_KEYS } from "@/lib/live-cache";
 import type { HistoryOrder } from "@/lib/mars";
 
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/v1/order/:id
  * Return status order + OTP. DB-only (poller jamin sync max 10s + cache 7s).
@@ -42,7 +44,7 @@ export async function GET(
         otp: fresh?.otp ?? (hasOtp ? live.otp : null),
         createdAt: live.order_time,
       },
-    });
+    }, { headers: { "Cache-Control": "no-store" } });
   }
 
   return NextResponse.json({
@@ -56,5 +58,5 @@ export async function GET(
       otp: log.otp ?? null,
       createdAt: Math.floor(log.createdAt.getTime() / 1000),
     },
-  });
+  }, { headers: { "Cache-Control": "no-store" } });
 }

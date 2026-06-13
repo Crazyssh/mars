@@ -5,6 +5,8 @@ import { syncOrderFromLive, outcomeToStatus } from "@/lib/order-sync";
 import { getCachedValue, CACHE_KEYS } from "@/lib/live-cache";
 import type { HistoryOrder } from "@/lib/mars";
 
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/order/[id] — return current status order.
  *
@@ -48,7 +50,7 @@ export async function GET(
         otp: fresh?.otp ?? (hasOtp ? live.otp : null),
         createdAt: live.order_time,
       },
-    });
+    }, { headers: { "Cache-Control": "no-store" } });
   }
 
   // Fallback: data dari DB only (poller pasti udah update)
@@ -62,5 +64,5 @@ export async function GET(
       otp: log.otp ?? null,
       createdAt: Math.floor(log.createdAt.getTime() / 1000),
     },
-  });
+  }, { headers: { "Cache-Control": "no-store" } });
 }
