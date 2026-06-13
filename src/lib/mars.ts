@@ -213,7 +213,12 @@ function classifyCancelText(
     return { success: true, message: msg };
   }
 
-  return { success: httpOk, message: msg };
+  // Ambigu / body kosong → JANGAN anggap sukses. Lebih aman gak cancel
+  // daripada nandain cancelled padahal provider belum tentu cancel.
+  return {
+    success: false,
+    message: msg || "Respons provider tidak jelas — order tidak dibatalkan",
+  };
 }
 
 export function formatRupiah(n: number): string {
