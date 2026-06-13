@@ -68,6 +68,8 @@ export default function AdminCookies() {
           </div>
         )}
 
+        <CfRefreshCard onMsg={setMsg} />
+
         {(["v1", "v2", "v3", "v4"] as Provider[]).map((p) => (
           <ProviderSection
             key={p}
@@ -92,6 +94,46 @@ export default function AdminCookies() {
         </section>
       </main>
     </div>
+  );
+}
+
+function CfRefreshCard(props: {
+  onMsg: (m: { type: "ok" | "err" | "warn"; text: string }) => void;
+}) {
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function refresh() {
+    setRefreshing(true);
+    try {
+      const res = await fetch("/api/admin/cf-refresh", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        props.onMsg({ type: "err", text: data.error ?? "Refresh gagal" });
+        return;
+      }
+      props.onMsg({ type: "ok", text: "✅ " + (data.message ?? "cf_clearance di-refresh") });
+    } catch {
+      props.onMsg({ type: "err", text: "Network error" });
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  return (
+    <section className="card space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="font-semibold">🛡️ Cloudflare (cf_clearance)</h2>
+        <button onClick={refresh} disabled={refreshing} className="btn btn-primary text-xs">
+          {refreshing ? "Refreshing..." : "Refresh via FlareSolverr"}
+        </button>
+      </div>
+      <p className="text-xs text-slate-600">
+        cf_clearance dipake <b>semua provider</b> (kebind ke IP server + domain, bukan akun).
+        Tombol ini minta FlareSolverr nyelesaiin challenge Cloudflare dari IP server,
+        terus cf_clearance + User-Agent otomatis ke-update. App juga auto-refresh sendiri
+        kalau kena 403. Butuh <code>FLARESOLVERR_URL</code> di .env.
+      </p>
+    </section>
   );
 }
 

@@ -16,6 +16,7 @@ import { config } from "./config";
 import { extractCountriesV3FromSlug, extractSaldo } from "./parse-html";
 import { getSetting, setSetting, SETTING_KEYS } from "./settings";
 import { withCache, setCacheValue, CACHE_KEYS } from "./live-cache";
+import { getSharedCfClearance, getDynamicUserAgent, refreshCfSession } from "./cf-session";
 import {
   MarsError,
   parseHarga,
@@ -139,7 +140,7 @@ class Mars3Client {
   }
 
   async getCfClearance(): Promise<string> {
-    return (await getSetting(SETTING_KEYS.MARS3_CF_CLEARANCE)) ?? "";
+    return getSharedCfClearance();
   }
 
   async setCookies(
@@ -151,7 +152,7 @@ class Mars3Client {
     await setSetting(SETTING_KEYS.MARS3_PHPSESSID, phpsessid);
     await setSetting(SETTING_KEYS.MARS3_USER_ID, userId);
     await setSetting(SETTING_KEYS.MARS3_EXPIRES_AT, expiresAt);
-    await setSetting(SETTING_KEYS.MARS3_CF_CLEARANCE, cfClearance);
+    await setSetting(SETTING_KEYS.MARS_CF_CLEARANCE, cfClearance);
   }
 
   private async cookieHeader(): Promise<string> {
@@ -208,69 +209,79 @@ class Mars3Client {
     referer?: string;
   }): Promise<{ status: number; body: string }> {
     const url = `${config.mars.baseUrl}${opts.path}`;
-    const args: string[] = [
-      "-s",
-      "-w", "\n%{http_code}",
-      "--compressed",
-      "--max-time", "45",
-      "--connect-timeout", "10",
-      "--retry", "2",
-      "--retry-delay", "2",
-      "--retry-connrefused",
-      "-X", opts.method,
-      "-H", `User-Agent: ${config.mars.userAgent}`,
-      "-H", `Accept: ${opts.accept ?? "*/*"}`,
-      "-H", "Accept-Language: id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
-      "-H", `Referer: ${opts.referer ?? config.mars.baseUrl + "/order"}`,
-      "-H", "X-Requested-With: XMLHttpRequest",
-      "-H", "DNT: 1",
-      "-H", "Priority: u=1, i",
-      "-H", 'sec-ch-ua: "Google Chrome";v="149", "Chromium";v="149", "Not)A;Brand";v="24"',
-      "-H", 'sec-ch-ua-arch: "x86"',
-      "-H", 'sec-ch-ua-bitness: "64"',
-      "-H", 'sec-ch-ua-full-version: "149.0.7827.103"',
-      "-H", 'sec-ch-ua-full-version-list: "Google Chrome";v="149.0.7827.103", "Chromium";v="149.0.7827.103", "Not)A;Brand";v="24.0.0.0"',
-      "-H", "sec-ch-ua-mobile: ?0",
-      "-H", 'sec-ch-ua-model: ""',
-      "-H", 'sec-ch-ua-platform: "Windows"',
-      "-H", 'sec-ch-ua-platform-version: "19.0.0"',
-      "-H", "sec-fetch-dest: empty",
-      "-H", "sec-fetch-mode: cors",
-      "-H", "sec-fetch-site: same-origin",
-      "-b", await this.cookieHeader(),
-    ];
-    if (opts.method === "POST" && opts.body !== undefined) {
-      args.push("-H", `Origin: ${config.mars.baseUrl}`);
-      args.push("-H", "Content-Type: application/x-www-form-urlencoded; charset=UTF-8");
-      args.push("--data-raw", opts.body);
-    }
-    args.push(url);
 
-    let stdout: string;
-    try {
-      const result = await execFileAsync(CURL_BINARY, args, {
-        maxBuffer: 50 * 1024 * 1024,
-        timeout: 35_000,
-      });
-      stdout = result.stdout;
-    } catch (e) {
-      const err = e as Error & { code?: number; stdout?: string };
-      const msg = err.code
-        ? `curl exit code ${err.code}`
-        : err.message?.slice(0, 100) ?? "unknown";
-      throw new MarsError(`curl failed: ${msg}`, 0, err.stdout?.slice(0, 200));
-    }
-    const lastNl = stdout.lastIndexOf("\n");
-    if (lastNl < 0) {
-      throw new MarsError(`Empty curl response`, 0, stdout);
-    }
-    const statusStr = stdout.slice(lastNl + 1).trim();
-    const status = parseInt(statusStr, 10);
-    const body = stdout.slice(0, lastNl);
-    return {
-      status: Number.isFinite(status) ? status : 0,
-      body,
+    const buildArgs = async (): Promise<string[]> => {
+      const ua = await getDynamicUserAgent();
+      const a: string[] = [
+        "-s",
+        "-w", "\n%{http_code}",
+        "--compressed",
+        "--max-time", "45",
+        "--connect-timeout", "10",
+        "--retry", "2",
+        "--retry-delay", "2",
+        "--retry-connrefused",
+        "-X", opts.method,
+        "-H", `User-Agent: ${ua}`,
+        "-H", `Accept: ${opts.accept ?? "*/*"}`,
+        "-H", "Accept-Language: id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+        "-H", `Referer: ${opts.referer ?? config.mars.baseUrl + "/order"}`,
+        "-H", "X-Requested-With: XMLHttpRequest",
+        "-H", "DNT: 1",
+        "-H", "Priority: u=1, i",
+        "-H", 'sec-ch-ua: "Google Chrome";v="149", "Chromium";v="149", "Not)A;Brand";v="24"',
+        "-H", 'sec-ch-ua-arch: "x86"',
+        "-H", 'sec-ch-ua-bitness: "64"',
+        "-H", 'sec-ch-ua-full-version: "149.0.7827.103"',
+        "-H", 'sec-ch-ua-full-version-list: "Google Chrome";v="149.0.7827.103", "Chromium";v="149.0.7827.103", "Not)A;Brand";v="24.0.0.0"',
+        "-H", "sec-ch-ua-mobile: ?0",
+        "-H", 'sec-ch-ua-model: ""',
+        "-H", 'sec-ch-ua-platform: "Windows"',
+        "-H", 'sec-ch-ua-platform-version: "19.0.0"',
+        "-H", "sec-fetch-dest: empty",
+        "-H", "sec-fetch-mode: cors",
+        "-H", "sec-fetch-site: same-origin",
+        "-b", await this.cookieHeader(),
+      ];
+      if (opts.method === "POST" && opts.body !== undefined) {
+        a.push("-H", `Origin: ${config.mars.baseUrl}`);
+        a.push("-H", "Content-Type: application/x-www-form-urlencoded; charset=UTF-8");
+        a.push("--data-raw", opts.body);
+      }
+      a.push(url);
+      return a;
     };
+
+    const runOnce = async (): Promise<{ status: number; body: string }> => {
+      let stdout: string;
+      try {
+        const result = await execFileAsync(CURL_BINARY, await buildArgs(), {
+          maxBuffer: 50 * 1024 * 1024,
+          timeout: 35_000,
+        });
+        stdout = result.stdout;
+      } catch (e) {
+        const err = e as Error & { code?: number; stdout?: string };
+        const msg = err.code
+          ? `curl exit code ${err.code}`
+          : err.message?.slice(0, 100) ?? "unknown";
+        throw new MarsError(`curl failed: ${msg}`, 0, err.stdout?.slice(0, 200));
+      }
+      const lastNl = stdout.lastIndexOf("\n");
+      if (lastNl < 0) {
+        throw new MarsError(`Empty curl response`, 0, stdout);
+      }
+      const statusStr = stdout.slice(lastNl + 1).trim();
+      const status = parseInt(statusStr, 10);
+      const body = stdout.slice(0, lastNl);
+      return { status: Number.isFinite(status) ? status : 0, body };
+    };
+
+    let res = await runOnce();
+    if (res.status === 403 && (await refreshCfSession())) {
+      res = await runOnce();
+    }
+    return res;
   }
 
   async getOrderPageHtml(): Promise<string> {

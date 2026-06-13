@@ -16,6 +16,9 @@ const schema = z.object({
   // Provider mana yang di-poll di server ini. Comma-separated.
   // Default semua. VPS khusus v4: set ENABLED_PROVIDERS=v4
   ENABLED_PROVIDERS: z.string().default("v1,v2,v3,v4"),
+  // FlareSolverr — solusi Cloudflare cf_clearance auto-refresh.
+  // Kosongin kalau gak dipake. Contoh: http://localhost:8191
+  FLARESOLVERR_URL: z.string().default(""),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -41,4 +44,5 @@ export const config = {
     cfClearance: env.MARS_CF_CLEARANCE,
     userAgent: env.MARS_USER_AGENT,
   },
+  flaresolverrUrl: env.FLARESOLVERR_URL.replace(/\/$/, ""),
 } as const;

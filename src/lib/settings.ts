@@ -35,6 +35,8 @@ export const SETTING_KEYS = {
   MARS_CF_CLEARANCE: "mars.cf_clearance",
   MARS_USER_ID: "mars.user_id",
   MARS_EXPIRES_AT: "mars.expires_at",
+  // User-Agent dinamis — di-set FlareSolverr biar match cf_clearance.
+  MARS_USER_AGENT: "mars.user_agent",
   MARS2_PHPSESSID: "mars2.phpsessid",
   MARS2_USER_ID: "mars2.user_id",
   MARS2_EXPIRES_AT: "mars2.expires_at",
