@@ -17,3 +17,7 @@ prisma/data
 *.png
 *.jpg
 *.jpeg
+test-cf.bat
+test-*.bat
+_body.json
+_*.json
