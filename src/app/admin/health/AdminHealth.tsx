@@ -233,6 +233,7 @@ export default function AdminHealth() {
                       <th className="text-left py-2 pr-3">Provider</th>
                       <th className="text-left py-2 pr-3">Status</th>
                       <th className="text-left py-2 pr-3">Durasi</th>
+                      <th className="text-left py-2 pr-3">Keterangan</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -246,6 +247,9 @@ export default function AdminHealth() {
                           </span>
                         </td>
                         <td className={`py-1.5 pr-3 font-mono ${durColor(h.durationMs)}`}>{fmtMs(h.durationMs)}</td>
+                        <td className="py-1.5 pr-3 text-[10px] text-red-600 max-w-[260px] truncate" title={h.error ?? ""}>
+                          {h.ok ? "" : h.error ?? "-"}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
