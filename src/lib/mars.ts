@@ -332,7 +332,7 @@ class MarsClient {
     });
     if (res.status !== 200) {
       throw new MarsError(
-        "Gagal load halaman provider — kemungkinan session expired",
+        `Gagal load halaman provider (HTTP ${res.status}) — kemungkinan session expired / cf_clearance salah`,
         res.status,
         res.body.slice(0, 200)
       );

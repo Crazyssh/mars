@@ -67,10 +67,21 @@ export async function POST(req: NextRequest) {
     provider === "v3" ? mars3 : mars4;
 
   await client.setCookies(phpsessid.trim(), userId.trim(), expiresAt.trim(), cfClearance.trim());
-  try { await client.loadCountries(); }
-  catch (e) {
-    return NextResponse.json({ error: `${provider.toUpperCase()} cookies disimpan tapi gagal test: ${(e as Error).message}`, warning: true }, { status: 200 });
+
+  // Validasi cookie pakai endpoint infoOrder yang ringan (bukan HTML page yg berat).
+  // Kalau ini sukses, cookie valid — daftar negara di-load best-effort terpisah.
+  try {
+    await client.fetchHistoryFresh(1, 5);
+  } catch (e) {
+    return NextResponse.json(
+      { error: `${provider.toUpperCase()} cookies disimpan tapi gagal test: ${(e as Error).message}`, warning: true },
+      { status: 200 }
+    );
   }
+
+  // Warm country cache (best-effort, gak ngeblok hasil test)
+  await client.loadCountries().catch(() => undefined);
+
   return NextResponse.json({ ok: true, provider });
 }
 
