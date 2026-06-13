@@ -277,7 +277,7 @@ class MarsClient {
       "-H", `Referer: ${opts.referer ?? config.mars.baseUrl + "/orderv3"}`,
       "-H", "X-Requested-With: XMLHttpRequest",
       "-H", "DNT: 1",
-      "-H", 'sec-ch-ua: "Chromium";v="148", "Google Chrome";v="148", "Not/A)Brand";v="99"',
+      "-H", 'sec-ch-ua: "Google Chrome";v="149", "Chromium";v="149", "Not)A;Brand";v="24"',
       "-H", "sec-ch-ua-mobile: ?0",
       "-H", 'sec-ch-ua-platform: "Windows"',
       "-H", "sec-fetch-dest: empty",

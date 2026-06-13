@@ -11,7 +11,7 @@ const schema = z.object({
   MARS_USER_AGENT: z
     .string()
     .default(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
     ),
   // Provider mana yang di-poll di server ini. Comma-separated.
   // Default semua. VPS khusus v4: set ENABLED_PROVIDERS=v4
