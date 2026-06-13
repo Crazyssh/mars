@@ -19,6 +19,8 @@ const schema = z.object({
   // FlareSolverr — solusi Cloudflare cf_clearance auto-refresh.
   // Kosongin kalau gak dipake. Contoh: http://localhost:8191
   FLARESOLVERR_URL: z.string().default(""),
+  // Interval auto-refresh cf_clearance terjadwal (menit). 0 = matiin.
+  CF_REFRESH_MINUTES: z.coerce.number().min(0).default(15),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -45,4 +47,5 @@ export const config = {
     userAgent: env.MARS_USER_AGENT,
   },
   flaresolverrUrl: env.FLARESOLVERR_URL.replace(/\/$/, ""),
+  cfRefreshMinutes: env.CF_REFRESH_MINUTES,
 } as const;

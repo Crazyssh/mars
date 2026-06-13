@@ -32,6 +32,43 @@ let refreshPromise: Promise<boolean> | null = null;
 let lastRefreshAt = 0;
 const REFRESH_COOLDOWN_MS = 15_000;
 
+declare global {
+  // eslint-disable-next-line no-var
+  var __cfRefreshTimer: NodeJS.Timeout | undefined;
+}
+
+/**
+ * Mulai auto-refresh cf_clearance terjadwal (proaktif, sebelum expired).
+ * Idempotent — aman dipanggil berkali-kali.
+ *
+ * Interval dari CF_REFRESH_MINUTES (default 15 menit, 0 = matiin).
+ */
+export function startCfAutoRefresh(): void {
+  if (!isFlaresolverrEnabled()) {
+    console.log("[cf-session] FlareSolverr off, auto-refresh gak jalan");
+    return;
+  }
+  if (config.cfRefreshMinutes <= 0) {
+    console.log("[cf-session] CF_REFRESH_MINUTES=0, auto-refresh dimatiin");
+    return;
+  }
+  if (global.__cfRefreshTimer) return;
+
+  const intervalMs = config.cfRefreshMinutes * 60_000;
+  console.log(
+    `[cf-session] auto-refresh cf_clearance tiap ${config.cfRefreshMinutes} menit`
+  );
+
+  // Refresh pertama pas startup (delay 10s biar gak barengan sama boot poller).
+  setTimeout(() => {
+    refreshCfSession().catch(() => undefined);
+  }, 10_000);
+
+  global.__cfRefreshTimer = setInterval(() => {
+    refreshCfSession().catch(() => undefined);
+  }, intervalMs);
+}
+
 /**
  * Refresh cf_clearance via FlareSolverr (dedup + cooldown).
  * Return true kalau berhasil dapet cf_clearance baru.
