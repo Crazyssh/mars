@@ -153,20 +153,26 @@ class Mars2Client {
       "-H", `User-Agent: ${config.mars.userAgent}`,
       "-H", `Accept: ${opts.accept ?? "*/*"}`,
       "-H", "Accept-Language: id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
-      "-H", `Origin: ${config.mars.baseUrl}`,
       "-H", `Referer: ${opts.referer ?? config.mars.baseUrl + "/orderv2"}`,
       "-H", "X-Requested-With: XMLHttpRequest",
       "-H", "DNT: 1",
+      "-H", "Priority: u=1, i",
       "-H", 'sec-ch-ua: "Google Chrome";v="149", "Chromium";v="149", "Not)A;Brand";v="24"',
+      "-H", 'sec-ch-ua-arch: "x86"',
+      "-H", 'sec-ch-ua-bitness: "64"',
+      "-H", 'sec-ch-ua-full-version: "149.0.7827.103"',
+      "-H", 'sec-ch-ua-full-version-list: "Google Chrome";v="149.0.7827.103", "Chromium";v="149.0.7827.103", "Not)A;Brand";v="24.0.0.0"',
       "-H", "sec-ch-ua-mobile: ?0",
+      "-H", 'sec-ch-ua-model: ""',
       "-H", 'sec-ch-ua-platform: "Windows"',
+      "-H", 'sec-ch-ua-platform-version: "19.0.0"',
       "-H", "sec-fetch-dest: empty",
       "-H", "sec-fetch-mode: cors",
       "-H", "sec-fetch-site: same-origin",
-      "-H", "Priority: u=1, i",
       "-b", await this.cookieHeader(),
     ];
     if (opts.method === "POST" && opts.body !== undefined) {
+      args.push("-H", `Origin: ${config.mars.baseUrl}`);
       args.push("-H", "Content-Type: application/x-www-form-urlencoded; charset=UTF-8");
       args.push("--data-raw", opts.body);
     }
