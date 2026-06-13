@@ -433,8 +433,8 @@ class Mars4Client {
     };
   }
 
-  async getHistory(page = 1, limit = 50): Promise<HistoryOrder[]> {
-    if (page === 1 && limit === 50) {
+  async getHistory(page = 1, limit = 100): Promise<HistoryOrder[]> {
+    if (page === 1 && limit === 100) {
       return withCache(CACHE_KEYS.V4_HISTORY_PAGE_1, 2_000, () =>
         this.fetchHistory(page, limit)
       );
@@ -442,9 +442,9 @@ class Mars4Client {
     return this.fetchHistory(page, limit);
   }
 
-  async fetchHistoryFresh(page = 1, limit = 50): Promise<HistoryOrder[]> {
+  async fetchHistoryFresh(page = 1, limit = 100): Promise<HistoryOrder[]> {
     const data = await this.fetchHistory(page, limit);
-    if (page === 1 && limit === 50) {
+    if (page === 1 && limit === 100) {
       setCacheValue(CACHE_KEYS.V4_HISTORY_PAGE_1, data, 2_000);
     }
     return data;
@@ -491,7 +491,7 @@ class Mars4Client {
   }
 
   async getOrder(orderId: string): Promise<HistoryOrder | null> {
-    const list = await this.getHistory(1, 50);
+    const list = await this.getHistory(1, 100);
     return list.find((o) => o.order_id === orderId) ?? null;
   }
 }

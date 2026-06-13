@@ -454,11 +454,11 @@ class MarsClient {
     };
   }
 
-  async getHistory(page = 1, limit = 50): Promise<HistoryOrder[]> {
+  async getHistory(page = 1, limit = 100): Promise<HistoryOrder[]> {
     // Page 1 di-cache karena sering dipake (poller, history endpoint, getOrder).
     // TTL 7s < poller interval 10s → poller selalu refresh, semua call lain
     // baca cache.
-    if (page === 1 && limit === 50) {
+    if (page === 1 && limit === 100) {
       return withCache(CACHE_KEYS.HISTORY_PAGE_1, 2_000, () =>
         this.fetchHistory(page, limit)
       );
@@ -467,9 +467,9 @@ class MarsClient {
   }
 
   /** Force-fetch ke provider, bypass cache. Dipake oleh poller. */
-  async fetchHistoryFresh(page = 1, limit = 50): Promise<HistoryOrder[]> {
+  async fetchHistoryFresh(page = 1, limit = 100): Promise<HistoryOrder[]> {
     const data = await this.fetchHistory(page, limit);
-    if (page === 1 && limit === 50) {
+    if (page === 1 && limit === 100) {
       // Update cache supaya call lain dapet data fresh
       setCacheValue(CACHE_KEYS.HISTORY_PAGE_1, data, 2_000);
     }
@@ -520,7 +520,7 @@ class MarsClient {
    * Multi-page sampai dapet semua row unik. Default 1 page (limit=50 row),
    * itu udah cukup untuk hampir semua kasus.
    */
-  async getHistoryAll(maxPages = 1, limit = 50): Promise<HistoryOrder[]> {
+  async getHistoryAll(maxPages = 1, limit = 100): Promise<HistoryOrder[]> {
     const all: HistoryOrder[] = [];
     const seen = new Set<string>();
     for (let p = 1; p <= maxPages; p++) {
@@ -546,7 +546,7 @@ class MarsClient {
   }
 
   async getOrder(orderId: string): Promise<HistoryOrder | null> {
-    const list = await this.getHistory(1, 50);
+    const list = await this.getHistory(1, 100);
     return list.find((o) => o.order_id === orderId) ?? null;
   }
 }

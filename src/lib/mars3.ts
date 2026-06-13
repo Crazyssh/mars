@@ -381,7 +381,7 @@ class Mars3Client {
   async cancelOrder(orderId: string): Promise<{ success: boolean; raw: unknown }> {
     const res = await this.request({
       method: "POST",
-      path: "/order?nomor=&status=&limit=50&page=1",
+      path: "/order?nomor=&status=&limit=100&page=1",
       body: `cancel=${encodeURIComponent(orderId)}`,
     });
     return {
@@ -390,8 +390,8 @@ class Mars3Client {
     };
   }
 
-  async getHistory(page = 1, limit = 50): Promise<HistoryOrder[]> {
-    if (page === 1 && limit === 50) {
+  async getHistory(page = 1, limit = 100): Promise<HistoryOrder[]> {
+    if (page === 1 && limit === 100) {
       return withCache(CACHE_KEYS.V3_HISTORY_PAGE_1, 2_000, () =>
         this.fetchHistory(page, limit)
       );
@@ -399,9 +399,9 @@ class Mars3Client {
     return this.fetchHistory(page, limit);
   }
 
-  async fetchHistoryFresh(page = 1, limit = 50): Promise<HistoryOrder[]> {
+  async fetchHistoryFresh(page = 1, limit = 100): Promise<HistoryOrder[]> {
     const data = await this.fetchHistory(page, limit);
-    if (page === 1 && limit === 50) {
+    if (page === 1 && limit === 100) {
       setCacheValue(CACHE_KEYS.V3_HISTORY_PAGE_1, data, 2_000);
     }
     return data;
@@ -448,7 +448,7 @@ class Mars3Client {
   }
 
   async getOrder(orderId: string): Promise<HistoryOrder | null> {
-    const list = await this.getHistory(1, 50);
+    const list = await this.getHistory(1, 100);
     return list.find((o) => o.order_id === orderId) ?? null;
   }
 }

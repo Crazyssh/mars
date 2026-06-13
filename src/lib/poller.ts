@@ -16,6 +16,7 @@ import type { HistoryOrder } from "./mars";
 const INTERVAL_MS = 8_000;
 const PENDING_TIMEOUT_MS = 22 * 60 * 1000;
 const SKIP_TICKS_ON_429 = 7;
+const POLL_LIMIT = 100;
 
 type Provider = "v1" | "v2" | "v3" | "v4";
 
@@ -31,62 +32,42 @@ declare global {
     | undefined;
 }
 
-async function fetchProviderHistory(
-  provider: Provider
-): Promise<HistoryOrder[] | null> {
+/**
+ * Pilih client buat 1 poll utama. Karena 1 akun dipake semua provider, history
+ * infoOrder sama — cukup 1 panggilan. Pakai provider enabled pertama.
+ */
+function primaryClient(): { provider: Provider; fetch: () => Promise<HistoryOrder[]> } {
+  const enabled = config.enabledProviders;
+  const p = (enabled[0] ?? "v1") as Provider;
+  const fetchFn =
+    p === "v1" ? () => mars.fetchHistoryFresh(1, POLL_LIMIT)
+    : p === "v2" ? () => mars2.fetchHistoryFresh(1, POLL_LIMIT)
+    : p === "v3" ? () => mars3.fetchHistoryFresh(1, POLL_LIMIT)
+    : () => mars4.fetchHistoryFresh(1, POLL_LIMIT);
+  return { provider: p, fetch: fetchFn };
+}
+
+/**
+ * 1 poll: ambil history sekali, return Map order_id → data.
+ * null = rate limited (429), [] = error lain.
+ */
+async function fetchAllHistory(): Promise<HistoryOrder[] | null> {
+  const { provider, fetch } = primaryClient();
   const started = Date.now();
   try {
-    let result: HistoryOrder[];
-    if (provider === "v1") result = await mars.fetchHistoryFresh(1, 50);
-    else if (provider === "v2") result = await mars2.fetchHistoryFresh(1, 50);
-    else if (provider === "v3") result = await mars3.fetchHistoryFresh(1, 50);
-    else result = await mars4.fetchHistoryFresh(1, 50);
-    // Sukses → provider UP, catat durasi
+    const result = await fetch();
     recordHealth(provider, true, Date.now() - started);
     return result;
   } catch (e) {
     const msg = (e as Error).message;
     if (e instanceof MarsError && e.statusCode === 429) {
-      // Rate-limited: catat sebagai down (provider nolak)
       recordHealth(provider, false, -1, "rate limited (429)");
       return null;
     }
     recordHealth(provider, false, -1, msg);
-    console.warn(`[poller] ${provider} fetch failed:`, msg);
+    console.warn(`[poller] fetch failed:`, msg);
     return [];
   }
-}
-
-async function syncProvider(
-  provider: Provider,
-  pending: { id: string; orderId: string; createdAt: Date }[]
-): Promise<{ updated: number; rateLimited: boolean }> {
-  if (pending.length === 0) return { updated: 0, rateLimited: false };
-
-  const live = await fetchProviderHistory(provider);
-  if (live === null) return { updated: 0, rateLimited: true };
-
-  const liveMap = new Map(live.map((o) => [o.order_id, o]));
-  let updated = 0;
-  for (const p of pending) {
-    const data = liveMap.get(p.orderId);
-    if (data) {
-      const changed = await syncOrderFromLive(data);
-      if (changed) updated++;
-    } else {
-      const age = Date.now() - p.createdAt.getTime();
-      if (age > PENDING_TIMEOUT_MS) {
-        await prisma.orderLog
-          .update({
-            where: { id: p.id },
-            data: { outcome: "expired" },
-          })
-          .catch(() => undefined);
-        updated++;
-      }
-    }
-  }
-  return { updated, rateLimited: false };
 }
 
 async function tick(state: {
@@ -97,42 +78,46 @@ async function tick(state: {
 
   const allPending = await prisma.orderLog.findMany({
     where: { outcome: "pending" },
-    select: { id: true, orderId: true, createdAt: true, provider: true },
+    select: { id: true, orderId: true, createdAt: true },
   });
 
-  const enabled = config.enabledProviders;
-
-  // Kalau gak ada pending sama sekali, tetap fetch 1 provider enabled untuk
-  // health check (biar status keupdate walau lagi sepi order).
+  // Gak ada pending → tetap fetch 1x buat health check.
   if (allPending.length === 0) {
-    const first = (enabled[0] ?? "v1") as Provider;
-    await fetchProviderHistory(first);
+    await fetchAllHistory();
     return;
   }
 
-  const grouped: Record<Provider, typeof allPending> = {
-    v1: allPending.filter((p) => p.provider === "v1"),
-    v2: allPending.filter((p) => p.provider === "v2"),
-    v3: allPending.filter((p) => p.provider === "v3"),
-    v4: allPending.filter((p) => p.provider === "v4"),
-  };
+  // Backoff global kalau lagi kena 429.
+  if (state.tickCount < state.skipUntilTick.v1) return;
 
-  // Sequential per provider. Cuma proses provider yang ENABLED di server ini.
-  for (const provider of ["v1", "v2", "v3", "v4"] as const) {
-    if (!enabled.includes(provider)) continue;
-    const pending = grouped[provider];
-    if (pending.length === 0) continue;
-    if (state.tickCount < state.skipUntilTick[provider]) continue;
+  // 1 akun = 1 history. Cukup 1 panggilan infoOrder buat semua order.
+  const live = await fetchAllHistory();
+  if (live === null) {
+    const until = state.tickCount + SKIP_TICKS_ON_429;
+    state.skipUntilTick = { v1: until, v2: until, v3: until, v4: until };
+    console.warn(`[poller] rate-limited, back off ${SKIP_TICKS_ON_429} ticks`);
+    return;
+  }
 
-    const r = await syncProvider(provider, pending);
-    if (r.rateLimited) {
-      state.skipUntilTick[provider] = state.tickCount + SKIP_TICKS_ON_429;
-      console.warn(
-        `[poller] ${provider} rate-limited, back off ${SKIP_TICKS_ON_429} ticks`
-      );
-    } else if (r.updated > 0) {
-      console.log(`[poller] ${provider} synced ${r.updated}/${pending.length}`);
+  const liveMap = new Map(live.map((o) => [o.order_id, o]));
+  let updated = 0;
+  for (const p of allPending) {
+    const data = liveMap.get(p.orderId);
+    if (data) {
+      const changed = await syncOrderFromLive(data);
+      if (changed) updated++;
+    } else {
+      const age = Date.now() - p.createdAt.getTime();
+      if (age > PENDING_TIMEOUT_MS) {
+        await prisma.orderLog
+          .update({ where: { id: p.id }, data: { outcome: "expired" } })
+          .catch(() => undefined);
+        updated++;
+      }
     }
+  }
+  if (updated > 0) {
+    console.log(`[poller] synced ${updated}/${allPending.length}`);
   }
 }
 
