@@ -38,10 +38,13 @@ export const SETTING_KEYS = {
   MARS2_PHPSESSID: "mars2.phpsessid",
   MARS2_USER_ID: "mars2.user_id",
   MARS2_EXPIRES_AT: "mars2.expires_at",
+  MARS2_CF_CLEARANCE: "mars2.cf_clearance",
   MARS3_PHPSESSID: "mars3.phpsessid",
   MARS3_USER_ID: "mars3.user_id",
   MARS3_EXPIRES_AT: "mars3.expires_at",
+  MARS3_CF_CLEARANCE: "mars3.cf_clearance",
   MARS4_PHPSESSID: "mars4.phpsessid",
   MARS4_USER_ID: "mars4.user_id",
   MARS4_EXPIRES_AT: "mars4.expires_at",
+  MARS4_CF_CLEARANCE: "mars4.cf_clearance",
 } as const;

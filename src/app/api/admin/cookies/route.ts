@@ -11,37 +11,38 @@ export async function GET() {
   if (auth.error) return auth.error;
 
   const [
-    v1Sess, v1User, v1Exp,
-    v2Sess, v2User, v2Exp,
-    v3Sess, v3User, v3Exp,
-    v4Sess, v4User, v4Exp,
+    v1Sess, v1User, v1Exp, v1Cf,
+    v2Sess, v2User, v2Exp, v2Cf,
+    v3Sess, v3User, v3Exp, v3Cf,
+    v4Sess, v4User, v4Exp, v4Cf,
   ] = await Promise.all([
-    mars.getPhpsessid(), mars.getUserId(), mars.getExpiresAt(),
-    mars2.getPhpsessid(), mars2.getUserId(), mars2.getExpiresAt(),
-    mars3.getPhpsessid(), mars3.getUserId(), mars3.getExpiresAt(),
-    mars4.getPhpsessid(), mars4.getUserId(), mars4.getExpiresAt(),
+    mars.getPhpsessid(), mars.getUserId(), mars.getExpiresAt(), mars.getCfClearance(),
+    mars2.getPhpsessid(), mars2.getUserId(), mars2.getExpiresAt(), mars2.getCfClearance(),
+    mars3.getPhpsessid(), mars3.getUserId(), mars3.getExpiresAt(), mars3.getCfClearance(),
+    mars4.getPhpsessid(), mars4.getUserId(), mars4.getExpiresAt(), mars4.getCfClearance(),
   ]);
 
   return NextResponse.json({
     data: {
-      v1: { phpsessid: maskMiddle(v1Sess), userId: v1User || "(empty)", expiresAt: v1Exp || "(empty)", phpsessidLen: v1Sess.length },
-      v2: { phpsessid: maskMiddle(v2Sess), userId: v2User || "(empty)", expiresAt: v2Exp || "(empty)", phpsessidLen: v2Sess.length },
-      v3: { phpsessid: maskMiddle(v3Sess), userId: v3User || "(empty)", expiresAt: v3Exp || "(empty)", phpsessidLen: v3Sess.length },
-      v4: { phpsessid: maskMiddle(v4Sess), userId: v4User || "(empty)", expiresAt: v4Exp || "(empty)", phpsessidLen: v4Sess.length },
+      v1: { phpsessid: maskMiddle(v1Sess), userId: v1User || "(empty)", expiresAt: v1Exp || "(empty)", cfClearance: maskMiddle(v1Cf), phpsessidLen: v1Sess.length, cfClearanceLen: v1Cf.length },
+      v2: { phpsessid: maskMiddle(v2Sess), userId: v2User || "(empty)", expiresAt: v2Exp || "(empty)", cfClearance: maskMiddle(v2Cf), phpsessidLen: v2Sess.length, cfClearanceLen: v2Cf.length },
+      v3: { phpsessid: maskMiddle(v3Sess), userId: v3User || "(empty)", expiresAt: v3Exp || "(empty)", cfClearance: maskMiddle(v3Cf), phpsessidLen: v3Sess.length, cfClearanceLen: v3Cf.length },
+      v4: { phpsessid: maskMiddle(v4Sess), userId: v4User || "(empty)", expiresAt: v4Exp || "(empty)", cfClearance: maskMiddle(v4Cf), phpsessidLen: v4Sess.length, cfClearanceLen: v4Cf.length },
     },
   });
 }
 
-const userExpSchema = z.object({
+const cookieSchema = z.object({
   phpsessid: z.string().min(20, "PHPSESSID terlalu pendek"),
   userId: z.string().min(1, "user_id required"),
   expiresAt: z.string().min(1, "expires_at required"),
+  cfClearance: z.string().min(50, "cf_clearance terlalu pendek (biasanya 200+)"),
 });
 
-const v1Schema = userExpSchema.extend({ provider: z.literal("v1") });
-const v2Schema = userExpSchema.extend({ provider: z.literal("v2") });
-const v3Schema = userExpSchema.extend({ provider: z.literal("v3") });
-const v4Schema = userExpSchema.extend({ provider: z.literal("v4") });
+const v1Schema = cookieSchema.extend({ provider: z.literal("v1") });
+const v2Schema = cookieSchema.extend({ provider: z.literal("v2") });
+const v3Schema = cookieSchema.extend({ provider: z.literal("v3") });
+const v4Schema = cookieSchema.extend({ provider: z.literal("v4") });
 
 const schema = z.union([v1Schema, v2Schema, v3Schema, v4Schema]);
 
@@ -58,14 +59,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { phpsessid, userId, expiresAt } = parsed.data;
+  const { phpsessid, userId, expiresAt, cfClearance } = parsed.data;
   const provider = parsed.data.provider;
   const client =
     provider === "v1" ? mars :
     provider === "v2" ? mars2 :
     provider === "v3" ? mars3 : mars4;
 
-  await client.setCookies(phpsessid.trim(), userId.trim(), expiresAt.trim());
+  await client.setCookies(phpsessid.trim(), userId.trim(), expiresAt.trim(), cfClearance.trim());
   try { await client.loadCountries(); }
   catch (e) {
     return NextResponse.json({ error: `${provider.toUpperCase()} cookies disimpan tapi gagal test: ${(e as Error).message}`, warning: true }, { status: 200 });

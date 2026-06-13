@@ -74,23 +74,30 @@ class Mars2Client {
     return (await getSetting(SETTING_KEYS.MARS2_EXPIRES_AT)) ?? "";
   }
 
+  async getCfClearance(): Promise<string> {
+    return (await getSetting(SETTING_KEYS.MARS2_CF_CLEARANCE)) ?? "";
+  }
+
   async setCookies(
     phpsessid: string,
     userId: string,
-    expiresAt: string
+    expiresAt: string,
+    cfClearance: string
   ): Promise<void> {
     await setSetting(SETTING_KEYS.MARS2_PHPSESSID, phpsessid);
     await setSetting(SETTING_KEYS.MARS2_USER_ID, userId);
     await setSetting(SETTING_KEYS.MARS2_EXPIRES_AT, expiresAt);
+    await setSetting(SETTING_KEYS.MARS2_CF_CLEARANCE, cfClearance);
   }
 
   private async cookieHeader(): Promise<string> {
-    const [phpsessid, userId, expiresAt] = await Promise.all([
+    const [phpsessid, userId, expiresAt, cfClearance] = await Promise.all([
       this.getPhpsessid(),
       this.getUserId(),
       this.getExpiresAt(),
+      this.getCfClearance(),
     ]);
-    return `PHPSESSID=${phpsessid}; user_id=${userId}; expires_at=${expiresAt}`;
+    return `PHPSESSID=${phpsessid}; user_id=${userId}; expires_at=${expiresAt}; cf_clearance=${cfClearance}`;
   }
 
   get countries(): MarsCountry[] {
