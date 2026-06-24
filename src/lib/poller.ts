@@ -13,9 +13,10 @@ import { recordHealth } from "./health";
 import { config } from "./config";
 import type { HistoryOrder } from "./mars";
 
-const INTERVAL_MS = 8_000;
+const FAST_MS = 5_000; // ada order pending → cek cepet biar OTP masuk
+const IDLE_MS = 60_000; // gak ada pending → cuma health check, hemat request
 const PENDING_TIMEOUT_MS = 22 * 60 * 1000;
-const SKIP_TICKS_ON_429 = 7;
+const BACKOFF_MS = 60_000; // kena 429 → mundur 1 menit
 const POLL_LIMIT = 100;
 
 type Provider = "v1" | "v2" | "v3" | "v4";
@@ -24,10 +25,9 @@ declare global {
   // eslint-disable-next-line no-var
   var __marsPoller:
     | {
-        interval: NodeJS.Timeout;
+        timer: NodeJS.Timeout;
         running: boolean;
-        skipUntilTick: Record<Provider, number>;
-        tickCount: number;
+        stopped: boolean;
       }
     | undefined;
 }
@@ -70,33 +70,30 @@ async function fetchAllHistory(): Promise<HistoryOrder[] | null> {
   }
 }
 
-async function tick(state: {
-  skipUntilTick: Record<Provider, number>;
-  tickCount: number;
-}): Promise<void> {
-  state.tickCount++;
-
+/**
+ * 1 tick poller. Return delay (ms) buat tick berikutnya — adaptif:
+ *   - ada pending  → FAST_MS (cek cepet biar OTP masuk)
+ *   - gak pending  → IDLE_MS (cuma health check, hemat request)
+ *   - kena 429     → BACKOFF_MS (mundur)
+ */
+async function tick(): Promise<number> {
   const allPending = await prisma.orderLog.findMany({
     where: { outcome: "pending" },
     select: { id: true, orderId: true, createdAt: true },
   });
 
-  // Gak ada pending → tetap fetch 1x buat health check.
+  // Gak ada pending → 1x fetch buat health check, terus poll lambat.
   if (allPending.length === 0) {
     await fetchAllHistory();
-    return;
+    return IDLE_MS;
   }
-
-  // Backoff global kalau lagi kena 429.
-  if (state.tickCount < state.skipUntilTick.v1) return;
 
   // 1 akun = 1 history. Cukup 1 panggilan infoOrder buat semua order.
   const live = await fetchAllHistory();
   if (live === null) {
-    const until = state.tickCount + SKIP_TICKS_ON_429;
-    state.skipUntilTick = { v1: until, v2: until, v3: until, v4: until };
-    console.warn(`[poller] rate-limited, back off ${SKIP_TICKS_ON_429} ticks`);
-    return;
+    // Rate limited → mundur.
+    console.warn(`[poller] rate-limited, backoff ${BACKOFF_MS / 1000}s`);
+    return BACKOFF_MS;
   }
 
   const liveMap = new Map(live.map((o) => [o.order_id, o]));
@@ -119,6 +116,7 @@ async function tick(state: {
   if (updated > 0) {
     console.log(`[poller] synced ${updated}/${allPending.length}`);
   }
+  return FAST_MS;
 }
 
 export function startPoller(): void {
@@ -128,29 +126,35 @@ export function startPoller(): void {
   }
 
   console.log(
-    `[poller] starting (interval=${INTERVAL_MS}ms, providers=${config.enabledProviders.join("+")})`
+    `[poller] starting (adaptif: ${FAST_MS / 1000}s aktif / ${IDLE_MS / 1000}s idle, providers=${config.enabledProviders.join("+")})`
   );
+
   const state = {
     running: false,
-    skipUntilTick: { v1: 0, v2: 0, v3: 0, v4: 0 } as Record<Provider, number>,
-    tickCount: 0,
-    interval: null as unknown as NodeJS.Timeout,
+    stopped: false,
+    timer: null as unknown as NodeJS.Timeout,
+  };
+
+  const scheduleNext = (delay: number) => {
+    if (state.stopped) return;
+    state.timer = setTimeout(run, delay);
   };
 
   const run = async () => {
     if (state.running) return;
     state.running = true;
+    let nextDelay = IDLE_MS;
     try {
-      await tick(state);
+      nextDelay = await tick();
     } catch (e) {
       console.error("[poller] tick error:", e);
+      nextDelay = IDLE_MS;
     } finally {
       state.running = false;
+      scheduleNext(nextDelay);
     }
   };
 
-  state.interval = setInterval(run, INTERVAL_MS);
   global.__marsPoller = state;
-
-  setTimeout(run, 5_000);
+  state.timer = setTimeout(run, 5_000);
 }
