@@ -12,9 +12,8 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { config } from "./config";
 import { extractCountriesV3, extractSaldo } from "./parse-html";
-import { getSetting, setSetting, SETTING_KEYS } from "./settings";
 import { withCache, setCacheValue, CACHE_KEYS } from "./live-cache";
-import { getSharedCfClearance, getDynamicUserAgent, refreshCfSession } from "./cf-session";
+import { getSharedCfClearance, getDynamicUserAgent, refreshCfSession, getSharedPhpsessid, getSharedUserId, getSharedExpiresAt, setSharedCookies } from "./cf-session";
 import {
   MarsError,
   parseHarga,
@@ -66,15 +65,15 @@ class Mars2Client {
   private countriesCache: MarsCountry[] = [];
 
   async getPhpsessid(): Promise<string> {
-    return (await getSetting(SETTING_KEYS.MARS2_PHPSESSID)) ?? "";
+    return getSharedPhpsessid();
   }
 
   async getUserId(): Promise<string> {
-    return (await getSetting(SETTING_KEYS.MARS2_USER_ID)) ?? "";
+    return getSharedUserId();
   }
 
   async getExpiresAt(): Promise<string> {
-    return (await getSetting(SETTING_KEYS.MARS2_EXPIRES_AT)) ?? "";
+    return getSharedExpiresAt();
   }
 
   async getCfClearance(): Promise<string> {
@@ -88,11 +87,7 @@ class Mars2Client {
     expiresAt: string,
     cfClearance: string
   ): Promise<void> {
-    await setSetting(SETTING_KEYS.MARS2_PHPSESSID, phpsessid);
-    await setSetting(SETTING_KEYS.MARS2_USER_ID, userId);
-    await setSetting(SETTING_KEYS.MARS2_EXPIRES_AT, expiresAt);
-    // cf_clearance disimpan ke key shared (dipake semua provider).
-    await setSetting(SETTING_KEYS.MARS_CF_CLEARANCE, cfClearance);
+    await setSharedCookies(phpsessid, userId, expiresAt, cfClearance);
   }
 
   private async cookieHeader(): Promise<string> {

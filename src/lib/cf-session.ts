@@ -28,6 +28,34 @@ export async function getDynamicUserAgent(): Promise<string> {
   );
 }
 
+// ---- Login cookie bersama (1 akun dipake semua provider) ----
+// PHPSESSID + user_id + expires_at sama buat v1-v4 karena 1 akun ditznesia.
+
+export async function getSharedPhpsessid(): Promise<string> {
+  return (await getSetting(SETTING_KEYS.MARS_PHPSESSID)) ?? config.mars.phpsessid;
+}
+
+export async function getSharedUserId(): Promise<string> {
+  return (await getSetting(SETTING_KEYS.MARS_USER_ID)) ?? "";
+}
+
+export async function getSharedExpiresAt(): Promise<string> {
+  return (await getSetting(SETTING_KEYS.MARS_EXPIRES_AT)) ?? "";
+}
+
+/** Simpan login cookie + cf_clearance (1 set buat semua provider). */
+export async function setSharedCookies(
+  phpsessid: string,
+  userId: string,
+  expiresAt: string,
+  cfClearance: string
+): Promise<void> {
+  await setSetting(SETTING_KEYS.MARS_PHPSESSID, phpsessid);
+  await setSetting(SETTING_KEYS.MARS_USER_ID, userId);
+  await setSetting(SETTING_KEYS.MARS_EXPIRES_AT, expiresAt);
+  await setSetting(SETTING_KEYS.MARS_CF_CLEARANCE, cfClearance);
+}
+
 let refreshPromise: Promise<boolean> | null = null;
 let lastRefreshAt = 0;
 const REFRESH_COOLDOWN_MS = 15_000;

@@ -7,9 +7,8 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { config } from "./config";
 import { extractCountriesV3, extractSaldo } from "./parse-html";
-import { getSetting, setSetting, SETTING_KEYS } from "./settings";
 import { withCache, setCacheValue, CACHE_KEYS } from "./live-cache";
-import { getSharedCfClearance, getDynamicUserAgent, refreshCfSession } from "./cf-session";
+import { getSharedCfClearance, getDynamicUserAgent, refreshCfSession, getSharedPhpsessid, getSharedUserId, getSharedExpiresAt, setSharedCookies } from "./cf-session";
 
 const execFileAsync = promisify(execFile);
 const CURL_BINARY = process.platform === "win32" ? "curl.exe" : "curl";
@@ -267,42 +266,31 @@ export async function verifyCurlAvailable(): Promise<void> {
 class MarsClient {
   private countriesCache: MarsCountry[] = [];
 
-  /**
-   * Get current PHPSESSID — prefer DB (live update via /admin/cookies),
-   * fallback ke .env.
-   */
+  /** Login cookie shared — 1 akun dipake semua provider. */
   async getPhpsessid(): Promise<string> {
-    return (
-      (await getSetting(SETTING_KEYS.MARS_PHPSESSID)) ??
-      config.mars.phpsessid
-    );
+    return getSharedPhpsessid();
   }
 
   async getUserId(): Promise<string> {
-    return (await getSetting(SETTING_KEYS.MARS_USER_ID)) ?? "";
+    return getSharedUserId();
   }
 
   async getExpiresAt(): Promise<string> {
-    return (await getSetting(SETTING_KEYS.MARS_EXPIRES_AT)) ?? "";
+    return getSharedExpiresAt();
   }
 
   async getCfClearance(): Promise<string> {
     return getSharedCfClearance();
   }
 
-  /**
-   * Update cookies di DB. Live — request berikutnya pakai value baru.
-   */
+  /** Update cookies (shared semua provider). Live — request berikutnya pakai value baru. */
   async setCookies(
     phpsessid: string,
     userId: string,
     expiresAt: string,
     cfClearance: string
   ): Promise<void> {
-    await setSetting(SETTING_KEYS.MARS_PHPSESSID, phpsessid);
-    await setSetting(SETTING_KEYS.MARS_USER_ID, userId);
-    await setSetting(SETTING_KEYS.MARS_EXPIRES_AT, expiresAt);
-    await setSetting(SETTING_KEYS.MARS_CF_CLEARANCE, cfClearance);
+    await setSharedCookies(phpsessid, userId, expiresAt, cfClearance);
   }
 
   private async cookieHeader(): Promise<string> {
