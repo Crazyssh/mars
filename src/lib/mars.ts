@@ -563,6 +563,38 @@ class MarsClient {
     return data;
   }
 
+  /**
+   * Hedged fetch — tembak `n` request infoOrder paralel, pakai yang PERTAMA
+   * balik sukses (race). Server ditznesia inkonsisten (0.2s s/d 23s untuk
+   * request yang sama), jadi nembak beberapa naikin peluang kena jalur cepat.
+   * Return error cuma kalau SEMUA gagal.
+   */
+  async fetchHistoryHedged(n = 3, page = 1, limit = 100): Promise<HistoryOrder[]> {
+    const count = Math.max(1, n);
+    const attempts = Array.from({ length: count }, () =>
+      this.fetchHistoryFresh(page, limit)
+    );
+
+    return new Promise<HistoryOrder[]>((resolve, reject) => {
+      let settled = false;
+      let failures = 0;
+      for (const p of attempts) {
+        p.then((data) => {
+          if (!settled) {
+            settled = true;
+            resolve(data);
+          }
+        }).catch((err) => {
+          failures++;
+          if (failures === count && !settled) {
+            settled = true;
+            reject(err);
+          }
+        });
+      }
+    });
+  }
+
   private async fetchHistory(page: number, limit: number): Promise<HistoryOrder[]> {
     const path = `/orderv3?nomor=&status=&limit=${limit}&page=${page}&action=infoOrder`;
     const res = await this.request({

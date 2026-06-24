@@ -18,6 +18,10 @@ const IDLE_MS = 60_000; // gak ada pending → cuma health check, hemat request
 const PENDING_TIMEOUT_MS = 22 * 60 * 1000;
 const BACKOFF_MS = 60_000; // kena 429 → mundur 1 menit
 const POLL_LIMIT = 100;
+// Hedged polling: tembak N request paralel, pakai yg pertama balik.
+// Server ditznesia inkonsisten (0.2s s/d 23s), jadi race naikin peluang cepet.
+const HEDGE_PENDING = 3; // pas ada order pending (prioritas cepet)
+const HEDGE_IDLE = 1; // pas idle (hemat, gak perlu cepet)
 
 type Provider = "v1" | "v2" | "v3" | "v4";
 
@@ -36,26 +40,26 @@ declare global {
  * Pilih client buat 1 poll utama. Karena 1 akun dipake semua provider, history
  * infoOrder sama — cukup 1 panggilan. Pakai provider enabled pertama.
  */
-function primaryClient(): { provider: Provider; fetch: () => Promise<HistoryOrder[]> } {
+function primaryClient(): { provider: Provider; fetch: (hedge: number) => Promise<HistoryOrder[]> } {
   const enabled = config.enabledProviders;
   const p = (enabled[0] ?? "v1") as Provider;
   const fetchFn =
-    p === "v1" ? () => mars.fetchHistoryFresh(1, POLL_LIMIT)
-    : p === "v2" ? () => mars2.fetchHistoryFresh(1, POLL_LIMIT)
-    : p === "v3" ? () => mars3.fetchHistoryFresh(1, POLL_LIMIT)
-    : () => mars4.fetchHistoryFresh(1, POLL_LIMIT);
+    p === "v1" ? (h: number) => mars.fetchHistoryHedged(h, 1, POLL_LIMIT)
+    : p === "v2" ? (h: number) => mars2.fetchHistoryHedged(h, 1, POLL_LIMIT)
+    : p === "v3" ? (h: number) => mars3.fetchHistoryHedged(h, 1, POLL_LIMIT)
+    : (h: number) => mars4.fetchHistoryHedged(h, 1, POLL_LIMIT);
   return { provider: p, fetch: fetchFn };
 }
 
 /**
- * 1 poll: ambil history sekali, return Map order_id → data.
+ * 1 poll: ambil history sekali (hedged), return array.
  * null = rate limited (429), [] = error lain.
  */
-async function fetchAllHistory(): Promise<HistoryOrder[] | null> {
+async function fetchAllHistory(hedge = 1): Promise<HistoryOrder[] | null> {
   const { provider, fetch } = primaryClient();
   const started = Date.now();
   try {
-    const result = await fetch();
+    const result = await fetch(hedge);
     recordHealth(provider, true, Date.now() - started);
     return result;
   } catch (e) {
@@ -84,12 +88,12 @@ async function tick(): Promise<number> {
 
   // Gak ada pending → 1x fetch buat health check, terus poll lambat.
   if (allPending.length === 0) {
-    await fetchAllHistory();
+    await fetchAllHistory(HEDGE_IDLE);
     return IDLE_MS;
   }
 
-  // 1 akun = 1 history. Cukup 1 panggilan infoOrder buat semua order.
-  const live = await fetchAllHistory();
+  // 1 akun = 1 history. Hedged: tembak beberapa, pakai yang pertama balik.
+  const live = await fetchAllHistory(HEDGE_PENDING);
   if (live === null) {
     // Rate limited → mundur.
     console.warn(`[poller] rate-limited, backoff ${BACKOFF_MS / 1000}s`);

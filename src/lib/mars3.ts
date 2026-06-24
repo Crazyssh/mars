@@ -407,6 +407,24 @@ class Mars3Client {
     return data;
   }
 
+  /** Hedged fetch — race n request, pakai yang pertama sukses. */
+  async fetchHistoryHedged(n = 3, page = 1, limit = 100): Promise<HistoryOrder[]> {
+    const count = Math.max(1, n);
+    const attempts = Array.from({ length: count }, () => this.fetchHistoryFresh(page, limit));
+    return new Promise<HistoryOrder[]>((resolve, reject) => {
+      let settled = false;
+      let failures = 0;
+      for (const p of attempts) {
+        p.then((data) => {
+          if (!settled) { settled = true; resolve(data); }
+        }).catch((err) => {
+          failures++;
+          if (failures === count && !settled) { settled = true; reject(err); }
+        });
+      }
+    });
+  }
+
   private async fetchHistory(page: number, limit: number): Promise<HistoryOrder[]> {
     const path = `/order?nomor=&status=&limit=${limit}&page=${page}&action=infoOrder`;
     const res = await this.request({
