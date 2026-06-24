@@ -11,9 +11,10 @@ export async function GET() {
 
   const where = { outcome: "otp_received" };
 
-  const [total, successful, byService, byCountry, byUser] = await Promise.all([
+  const [total, successful, pending, byService, byCountry, byUser] = await Promise.all([
     prisma.orderLog.count(),
     prisma.orderLog.count({ where }),
+    prisma.orderLog.count({ where: { outcome: "pending" } }),
     prisma.orderLog.groupBy({
       by: ["serviceName"],
       where,
@@ -45,6 +46,9 @@ export async function GET() {
     data: {
       total,
       successful,
+      pending,
+      // gagal/expired = total dikurangi sukses & yang masih pending
+      failed: Math.max(0, total - successful - pending),
       successRate:
         total === 0 ? 0 : Math.round((successful / total) * 100),
       byService: byService

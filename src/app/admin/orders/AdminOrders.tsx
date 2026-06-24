@@ -24,6 +24,8 @@ interface OrderRow {
 interface StatsData {
   total: number;
   successful: number;
+  pending: number;
+  failed: number;
   successRate: number;
   byService: Array<{ name: string; count: number }>;
   byCountry: Array<{ name: string; count: number }>;
@@ -110,11 +112,12 @@ export default function AdminOrders() {
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
         {/* Stats Summary */}
         {stats && (
-          <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <section className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <StatCard label="Total Orders" value={stats.total} />
             <StatCard label="Sukses OTP" value={stats.successful} color="green" />
+            <StatCard label="Pending" value={stats.pending} color="yellow" />
             <StatCard label="Success Rate" value={`${stats.successRate}%`} color="blue" />
-            <StatCard label="Gagal/Expired" value={stats.total - stats.successful} color="red" />
+            <StatCard label="Gagal/Expired" value={stats.failed} color="red" />
           </section>
         )}
 
@@ -238,12 +241,13 @@ function StatCard({
 }: {
   label: string;
   value: string | number;
-  color?: "green" | "blue" | "red";
+  color?: "green" | "blue" | "red" | "yellow";
 }) {
   const colorClass = {
     green: "text-green-600",
     blue: "text-blue-600",
     red: "text-red-600",
+    yellow: "text-yellow-600",
   }[color ?? ("" as never)] ?? "text-slate-900";
   return (
     <div className="card !p-3">
