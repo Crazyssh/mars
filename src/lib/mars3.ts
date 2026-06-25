@@ -208,7 +208,7 @@ class Mars3Client {
     maxTimeSec?: number;
   }): Promise<{ status: number; body: string }> {
     const url = `${config.mars.baseUrl}${opts.path}`;
-    const maxTime = opts.maxTimeSec ?? 45;
+    const maxTime = opts.maxTimeSec ?? 60;
 
     const buildArgs = async (): Promise<string[]> => {
       const ua = await getDynamicUserAgent();
