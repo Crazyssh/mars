@@ -1,7 +1,18 @@
 /**
- * Background poller — sinkron pending orders dengan provider tiap interval.
+ * Background poller — overlapping fixed-interval polling.
  *
- * Handle 4 provider: v1 (mars), v2 (mars2), v3 (mars3), v4 (mars4).
+ * Pola: tiap 5 detik tembak 1 request infoOrder, TANPA nunggu yang sebelumnya
+ * selesai (overlap). Hasil yang DULUAN balik dipakai; poll lama yang baru balik
+ * belakangan diabaikan (data udah keduluan yang lebih baru).
+ *
+ * Efek: kalau request pertama nyangkut/delay, request 5 detik berikutnya tetep
+ * jalan dan bisa balik duluan → OTP tetep cepet masuk walau 1 request lemot.
+ *
+ * Pengaman: max 3 request barengan (MAX_INFLIGHT) biar gak ngebanjirin server
+ * ditznesia yang gampang overload.
+ *
+ * 1 akun dipake semua provider → cukup 1 endpoint infoOrder (provider enabled
+ * pertama) buat sinkron semua order.
  */
 import { mars, MarsError } from "./mars";
 import { mars2 } from "./mars2";
@@ -13,15 +24,12 @@ import { recordHealth } from "./health";
 import { config } from "./config";
 import type { HistoryOrder } from "./mars";
 
-const FAST_MS = 5_000; // ada order pending → cek cepet biar OTP masuk
-const IDLE_MS = 60_000; // gak ada pending → cuma health check, hemat request
+const INTERVAL_MS = 5_000; // tiap 5 detik tembak (overlap, gak nunggu)
+const IDLE_MS = 60_000; // gak ada pending → throttle jadi 60s (hemat)
 const PENDING_TIMEOUT_MS = 22 * 60 * 1000;
 const BACKOFF_MS = 60_000; // kena 429 → mundur 1 menit
 const POLL_LIMIT = 100;
-// Hedged polling: tembak N request paralel, pakai yg pertama balik.
-// Server ditznesia inkonsisten (0.2s s/d 23s), jadi race naikin peluang cepet.
-const HEDGE_PENDING = 3; // pas ada order pending (prioritas cepet)
-const HEDGE_IDLE = 1; // pas idle (hemat, gak perlu cepet)
+const MAX_INFLIGHT = 3; // max request barengan (take-first effect, anti-flood)
 
 type Provider = "v1" | "v2" | "v3" | "v4";
 
@@ -30,36 +38,32 @@ declare global {
   var __marsPoller:
     | {
         timer: NodeJS.Timeout;
-        running: boolean;
         stopped: boolean;
+        inflight: number;
+        lastAppliedStart: number;
+        lastIdleFetch: number;
+        backoffUntil: number;
       }
     | undefined;
 }
 
-/**
- * Pilih client buat 1 poll utama. Karena 1 akun dipake semua provider, history
- * infoOrder sama — cukup 1 panggilan. Pakai provider enabled pertama.
- */
-function primaryClient(): { provider: Provider; fetch: (hedge: number) => Promise<HistoryOrder[]> } {
+function primaryClient(): { provider: Provider; fetch: () => Promise<HistoryOrder[]> } {
   const enabled = config.enabledProviders;
   const p = (enabled[0] ?? "v1") as Provider;
   const fetchFn =
-    p === "v1" ? (h: number) => mars.fetchHistoryHedged(h, 1, POLL_LIMIT)
-    : p === "v2" ? (h: number) => mars2.fetchHistoryHedged(h, 1, POLL_LIMIT)
-    : p === "v3" ? (h: number) => mars3.fetchHistoryHedged(h, 1, POLL_LIMIT)
-    : (h: number) => mars4.fetchHistoryHedged(h, 1, POLL_LIMIT);
+    p === "v1" ? () => mars.fetchHistoryFresh(1, POLL_LIMIT)
+    : p === "v2" ? () => mars2.fetchHistoryFresh(1, POLL_LIMIT)
+    : p === "v3" ? () => mars3.fetchHistoryFresh(1, POLL_LIMIT)
+    : () => mars4.fetchHistoryFresh(1, POLL_LIMIT);
   return { provider: p, fetch: fetchFn };
 }
 
-/**
- * 1 poll: ambil history sekali (hedged), return array.
- * null = rate limited (429), [] = error lain.
- */
-async function fetchAllHistory(hedge = 1): Promise<HistoryOrder[] | null> {
+/** 1 fetch ke provider. null = rate limited, [] = error lain. */
+async function fetchHistory(): Promise<HistoryOrder[] | null> {
   const { provider, fetch } = primaryClient();
   const started = Date.now();
   try {
-    const result = await fetch(hedge);
+    const result = await fetch();
     recordHealth(provider, true, Date.now() - started);
     return result;
   } catch (e) {
@@ -74,35 +78,17 @@ async function fetchAllHistory(hedge = 1): Promise<HistoryOrder[] | null> {
   }
 }
 
-/**
- * 1 tick poller. Return delay (ms) buat tick berikutnya — adaptif:
- *   - ada pending  → FAST_MS (cek cepet biar OTP masuk)
- *   - gak pending  → IDLE_MS (cuma health check, hemat request)
- *   - kena 429     → BACKOFF_MS (mundur)
- */
-async function tick(): Promise<number> {
-  const allPending = await prisma.orderLog.findMany({
+/** Apply live history ke DB (sync OTP + expire order tua). */
+async function applyLive(live: HistoryOrder[]): Promise<void> {
+  const pending = await prisma.orderLog.findMany({
     where: { outcome: "pending" },
     select: { id: true, orderId: true, createdAt: true },
   });
-
-  // Gak ada pending → 1x fetch buat health check, terus poll lambat.
-  if (allPending.length === 0) {
-    await fetchAllHistory(HEDGE_IDLE);
-    return IDLE_MS;
-  }
-
-  // 1 akun = 1 history. Hedged: tembak beberapa, pakai yang pertama balik.
-  const live = await fetchAllHistory(HEDGE_PENDING);
-  if (live === null) {
-    // Rate limited → mundur.
-    console.warn(`[poller] rate-limited, backoff ${BACKOFF_MS / 1000}s`);
-    return BACKOFF_MS;
-  }
+  if (pending.length === 0) return;
 
   const liveMap = new Map(live.map((o) => [o.order_id, o]));
   let updated = 0;
-  for (const p of allPending) {
+  for (const p of pending) {
     const data = liveMap.get(p.orderId);
     if (data) {
       const changed = await syncOrderFromLive(data);
@@ -117,10 +103,7 @@ async function tick(): Promise<number> {
       }
     }
   }
-  if (updated > 0) {
-    console.log(`[poller] synced ${updated}/${allPending.length}`);
-  }
-  return FAST_MS;
+  if (updated > 0) console.log(`[poller] synced ${updated}/${pending.length}`);
 }
 
 export function startPoller(): void {
@@ -130,35 +113,60 @@ export function startPoller(): void {
   }
 
   console.log(
-    `[poller] starting (adaptif: ${FAST_MS / 1000}s aktif / ${IDLE_MS / 1000}s idle, providers=${config.enabledProviders.join("+")})`
+    `[poller] starting (overlap ${INTERVAL_MS / 1000}s, max ${MAX_INFLIGHT} inflight, providers=${config.enabledProviders.join("+")})`
   );
 
   const state = {
-    running: false,
-    stopped: false,
     timer: null as unknown as NodeJS.Timeout,
+    stopped: false,
+    inflight: 0,
+    lastAppliedStart: 0,
+    lastIdleFetch: 0,
+    backoffUntil: 0,
   };
+  global.__marsPoller = state;
 
-  const scheduleNext = (delay: number) => {
+  const launch = async () => {
     if (state.stopped) return;
-    state.timer = setTimeout(run, delay);
-  };
+    // Lagi backoff (kena 429) → skip.
+    if (Date.now() < state.backoffUntil) return;
+    // Anti-flood: jangan lebih dari MAX_INFLIGHT request barengan.
+    if (state.inflight >= MAX_INFLIGHT) return;
 
-  const run = async () => {
-    if (state.running) return;
-    state.running = true;
-    let nextDelay = IDLE_MS;
+    // Cek ada order pending. Kalau gak ada → throttle ke IDLE_MS (cuma health).
+    const pendingCount = await prisma.orderLog.count({ where: { outcome: "pending" } });
+    if (pendingCount === 0) {
+      if (Date.now() - state.lastIdleFetch < IDLE_MS) return;
+      state.lastIdleFetch = Date.now();
+    }
+
+    const startedAt = Date.now();
+    state.inflight++;
     try {
-      nextDelay = await tick();
+      const live = await fetchHistory();
+      if (live === null) {
+        // Rate limited → mundur semua.
+        state.backoffUntil = Date.now() + BACKOFF_MS;
+        console.warn(`[poller] rate-limited, backoff ${BACKOFF_MS / 1000}s`);
+        return;
+      }
+      // Take-first: cuma apply kalau poll ini LEBIH BARU dari yg udah ke-apply.
+      // Poll lama yang balik belakangan (startedAt < lastAppliedStart) diabaikan.
+      if (startedAt <= state.lastAppliedStart) return;
+      state.lastAppliedStart = startedAt;
+      await applyLive(live);
     } catch (e) {
-      console.error("[poller] tick error:", e);
-      nextDelay = IDLE_MS;
+      console.error("[poller] launch error:", e);
     } finally {
-      state.running = false;
-      scheduleNext(nextDelay);
+      state.inflight--;
     }
   };
 
-  global.__marsPoller = state;
-  state.timer = setTimeout(run, 5_000);
+  // Interval TETAP — gak nunggu launch sebelumnya selesai (overlap).
+  state.timer = setInterval(() => {
+    launch();
+  }, INTERVAL_MS);
+
+  // Tembakan pertama setelah 5 detik.
+  setTimeout(() => launch(), 5_000);
 }
