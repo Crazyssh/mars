@@ -34,6 +34,6 @@ export const config = {
      * - /_next (static assets)
      * - /favicon, /images, etc
      */
-    "/((?!api/auth|api/v1|api/v2|api/v3|api/v4|_next/static|_next/image|favicon.ico).*)",
+    "/((?!api/auth|api/ingest|api/v1|api/v2|api/v3|api/v4|_next/static|_next/image|favicon.ico).*)",
   ],
 };
