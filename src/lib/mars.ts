@@ -444,7 +444,7 @@ class MarsClient {
   }
 
   async listServices(countryId: number): Promise<ServicesResponse> {
-    return withCache(CACHE_KEYS.SERVICES(countryId), 30_000, async () => {
+    return withCache(CACHE_KEYS.SERVICES(countryId), 300_000, async () => {
       const res = await this.request({
         method: "POST",
         path: "/orderv3",

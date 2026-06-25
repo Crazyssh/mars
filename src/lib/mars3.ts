@@ -309,7 +309,7 @@ class Mars3Client {
    * V3 listServices pakai country slug, bukan id.
    */
   async listServices(countrySlug: string): Promise<V3ServicesResponse> {
-    return withCache(CACHE_KEYS.V3_SERVICES(countrySlug), 30_000, async () => {
+    return withCache(CACHE_KEYS.V3_SERVICES(countrySlug), 300_000, async () => {
       const res = await this.request({
         method: "POST",
         path: "/order",
