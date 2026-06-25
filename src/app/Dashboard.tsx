@@ -295,21 +295,24 @@ export default function Dashboard({ user }: { user: User }) {
     setOrderError("");
     setBulkResult(null);
     setBulkProgress({ done: 0, total: count });
-    let ok = 0;
-    let failed = 0;
-    let lastErr = "";
-    for (let i = 0; i < count; i++) {
-      const res = await callOrderApi();
-      if (res.ok) {
-        ok++;
-      } else {
-        failed++;
-        lastErr = res.error ?? "";
-      }
-      setBulkProgress({ done: i + 1, total: count });
-      // Jeda kecil biar gak ke-rate-limit provider
-      if (i < count - 1) await new Promise((r) => setTimeout(r, 500));
-    }
+
+    let done = 0;
+    // Tembak semua order PARALEL — gak nunggu satu-satu. Tiap order independen
+    // (beda nomor), jadi aman diparalelin. Total waktu ≈ 1 request, bukan count×.
+    const results = await Promise.all(
+      Array.from({ length: count }, () =>
+        callOrderApi().then((r) => {
+          done++;
+          setBulkProgress({ done, total: count });
+          return r;
+        })
+      )
+    );
+
+    const ok = results.filter((r) => r.ok).length;
+    const failed = count - ok;
+    const lastErr = results.find((r) => !r.ok)?.error ?? "";
+
     setBulkProgress(null);
     setBulkResult({ ok, failed });
     if (failed > 0 && lastErr) {
