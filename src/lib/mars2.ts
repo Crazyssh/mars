@@ -138,8 +138,10 @@ class Mars2Client {
     body?: string;
     accept?: string;
     referer?: string;
+    maxTimeSec?: number;
   }): Promise<{ status: number; body: string }> {
     const url = `${config.mars.baseUrl}${opts.path}`;
+    const maxTime = opts.maxTimeSec ?? 45;
 
     const buildArgs = async (): Promise<string[]> => {
       const ua = await getDynamicUserAgent();
@@ -147,7 +149,7 @@ class Mars2Client {
         "-s",
         "-w", "\n%{http_code}",
         "--compressed",
-        "--max-time", "45",
+        "--max-time", String(maxTime),
         "--connect-timeout", "10",
         "--retry", "2",
         "--retry-delay", "2",
@@ -188,7 +190,7 @@ class Mars2Client {
       try {
         const result = await execFileAsync(CURL_BINARY, await buildArgs(), {
           maxBuffer: 50 * 1024 * 1024,
-          timeout: 35_000,
+          timeout: (maxTime + 5) * 1000,
         });
         stdout = result.stdout;
       } catch (e) {
@@ -284,6 +286,7 @@ class Mars2Client {
         method: "POST",
         path: "/orderv2",
         body,
+        maxTimeSec: 90,
       });
       const parsed = parseJsonSafe<Record<string, unknown>>(res.body);
       const data: Record<string, unknown> | string = parsed ?? res.body;

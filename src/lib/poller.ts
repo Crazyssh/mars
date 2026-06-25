@@ -8,7 +8,7 @@
  * Efek: kalau request pertama nyangkut/delay, request 5 detik berikutnya tetep
  * jalan dan bisa balik duluan → OTP tetep cepet masuk walau 1 request lemot.
  *
- * Pengaman: max 3 request barengan (MAX_INFLIGHT) biar gak ngebanjirin server
+ * Pengaman: max 15 request barengan (MAX_INFLIGHT) biar gak ngebanjirin server
  * ditznesia yang gampang overload.
  *
  * 1 akun dipake semua provider → cukup 1 endpoint infoOrder (provider enabled
@@ -29,7 +29,7 @@ const IDLE_MS = 60_000; // gak ada pending → throttle jadi 60s (hemat)
 const PENDING_TIMEOUT_MS = 22 * 60 * 1000;
 const BACKOFF_MS = 60_000; // kena 429 → mundur 1 menit
 const POLL_LIMIT = 100;
-const MAX_INFLIGHT = 3; // max request barengan (take-first effect, anti-flood)
+const MAX_INFLIGHT = 15; // max request barengan (take-first effect, anti-flood)
 
 type Provider = "v1" | "v2" | "v3" | "v4";
 
