@@ -249,8 +249,6 @@ export default function Dashboard({ user }: { user: User }) {
           countryId: selectedCountry.id,
           service: selectedService.code,
           operator: selectedOperator,
-          serviceName: selectedService.name,
-          priceIdr: selectedService.priceIdr,
         }),
       });
       const data = await res.json();
