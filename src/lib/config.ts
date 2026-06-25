@@ -21,6 +21,8 @@ const schema = z.object({
   FLARESOLVERR_URL: z.string().default(""),
   // Interval auto-refresh cf_clearance terjadwal (menit). 0 = matiin.
   CF_REFRESH_MINUTES: z.coerce.number().min(0).default(15),
+  // Secret buat endpoint /api/ingest (relay dari browser PC). Kosong = ingest mati.
+  INGEST_SECRET: z.string().default(""),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -48,4 +50,5 @@ export const config = {
   },
   flaresolverrUrl: env.FLARESOLVERR_URL.replace(/\/$/, ""),
   cfRefreshMinutes: env.CF_REFRESH_MINUTES,
+  ingestSecret: env.INGEST_SECRET,
 } as const;
