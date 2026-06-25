@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Mars OTP Relay
 // @namespace    mars-relay
-// @version      1.1
-// @description  Polling infoOrder dari browser (RDP/PC), kirim ke VPS Mars. Jalan di tab ditznesia.com.
+// @version      1.2
+// @description  Polling infoOrder dari browser (RDP/PC) + anti-throttle audio, kirim ke VPS Mars. Jalan di tab ditznesia.com.
 // @match        https://ditznesia.com/*
 // @grant        GM_xmlhttpRequest
 // @connect      *
@@ -22,6 +22,36 @@
   let inflight = false;
 
   function log(...a) { console.log("[mars-relay]", ...a); }
+
+  // ── Anti-throttle: bikin Chrome anggap tab "selalu aktif" ──
+  // Chrome ngelambatin setInterval jadi ~1x/menit kalau tab di background.
+  // Trik: putar audio silent (oscillator volume 0) terus-terusan → tab
+  // dianggap "playing audio" → throttling dimatiin. Jadi polling tetep
+  // jalan 3 detik walau Windows 365 disconnect / tab di-minimize.
+  function keepAwake() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) { log("AudioContext gak ada, skip anti-throttle"); return; }
+      const ctx = new Ctx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      gain.gain.value = 0; // volume 0 = bener-bener silent
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      // Resume kalau ke-suspend (autoplay policy)
+      const resume = () => { if (ctx.state === "suspended") ctx.resume().catch(() => {}); };
+      resume();
+      setInterval(resume, 5000);
+      // Resume juga pas ada interaksi user (kalau autoplay diblok)
+      ["click", "keydown", "visibilitychange"].forEach((ev) =>
+        document.addEventListener(ev, resume, { once: false })
+      );
+      log("anti-throttle audio aktif (tab gak akan ke-throttle)");
+    } catch (e) {
+      log("anti-throttle gagal:", e.message);
+    }
+  }
 
   async function pollOnce() {
     if (inflight) return;
@@ -63,6 +93,7 @@
   }
 
   log("started — polling tiap", POLL_INTERVAL_MS, "ms → relay ke", VPS_INGEST_URL);
+  keepAwake();
   setInterval(pollOnce, POLL_INTERVAL_MS);
   pollOnce();
 })();
