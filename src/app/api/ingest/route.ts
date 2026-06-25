@@ -52,8 +52,8 @@ export async function POST(req: NextRequest) {
   // Update cache (dipake endpoint order/[id] + history biar dapet data fresh)
   setCacheValue(CACHE_KEYS.HISTORY_PAGE_1, orders, 8_000);
 
-  // Relay sukses → provider dianggap UP (durasi 0 = via relay)
-  recordHealth("v1", true, 0, "via relay");
+  // Relay sukses → provider dianggap UP, sumber = relay (RDP)
+  recordHealth("v1", true, 0, "via relay", "relay");
 
   let updated = 0;
   for (const o of orders) {

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 interface HealthCheck {
   at: string;
   provider: string;
+  source?: "vps" | "relay";
   durationMs: number;
   ok: boolean;
   error?: string;
@@ -24,6 +25,7 @@ interface Stats {
   uptimePct: number;
   duration: { min: number; max: number; avg: number; p95: number } | null;
   perProvider: Record<string, ProviderStat>;
+  bySource: Record<"vps" | "relay", { ok: number; fail: number; lastAt: string | null }>;
   distribution: { label: string; count: number }[];
 }
 
@@ -185,6 +187,38 @@ export default function AdminHealth() {
               </div>
             </div>
 
+            {/* Sumber data: VPS poller vs RDP relay */}
+            <div className="card">
+              <h2 className="font-semibold text-sm mb-3">Sumber Data OTP</h2>
+              <div className="grid grid-cols-2 gap-3">
+                {(["relay", "vps"] as const).map((src) => {
+                  const s = stats!.bySource[src];
+                  const total = s.ok + s.fail;
+                  const label = src === "relay" ? "🖥️ Relay (RDP)" : "☁️ Poller (VPS)";
+                  return (
+                    <div key={src} className="border border-slate-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-xs">{label}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${total === 0 ? "bg-slate-100 text-slate-500" : s.ok > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                          {total === 0 ? "tidak aktif" : "aktif"}
+                        </span>
+                      </div>
+                      <div className="text-lg font-bold mt-1">
+                        {total > 0 ? `${s.ok} ok` : "—"}
+                        {s.fail > 0 && <span className="text-red-600 text-sm"> / {s.fail} fail</span>}
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        {s.lastAt ? `terakhir: ${fmtTime(s.lastAt)}` : "belum ada data"}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-slate-400 mt-2">
+                Relay = OTP masuk dari browser RDP (cepet). VPS = poller server (backup).
+              </p>
+            </div>
+
             {/* Distribution + range */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="card">
@@ -230,6 +264,7 @@ export default function AdminHealth() {
                   <thead className="text-[10px] uppercase text-slate-500 border-b sticky top-0 bg-white">
                     <tr>
                       <th className="text-left py-2 pr-3">Waktu</th>
+                      <th className="text-left py-2 pr-3">Sumber</th>
                       <th className="text-left py-2 pr-3">Provider</th>
                       <th className="text-left py-2 pr-3">Status</th>
                       <th className="text-left py-2 pr-3">Durasi</th>
@@ -240,6 +275,11 @@ export default function AdminHealth() {
                     {data.history.map((h, i) => (
                       <tr key={i} className="border-b last:border-b-0">
                         <td className="py-1.5 pr-3 font-mono">{fmtTime(h.at)}</td>
+                        <td className="py-1.5 pr-3">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${h.source === "relay" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"}`}>
+                            {h.source === "relay" ? "RDP" : "VPS"}
+                          </span>
+                        </td>
                         <td className="py-1.5 pr-3 font-mono">{h.provider}</td>
                         <td className="py-1.5 pr-3">
                           <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${h.ok ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>

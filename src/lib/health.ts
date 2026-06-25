@@ -13,6 +13,7 @@ const MAX_HISTORY = 100;
 export interface HealthCheck {
   at: string; // ISO timestamp
   provider: string; // "v1" | "v2" | "v3" | "v4"
+  source: "vps" | "relay"; // sumber data: poller VPS atau relay RDP
   durationMs: number; // lama fetch (-1 kalau gagal)
   ok: boolean;
   error?: string;
@@ -31,18 +32,20 @@ function store() {
 }
 
 /**
- * Dipanggil poller tiap selesai fetch provider.
+ * Dipanggil poller (source="vps") atau ingest relay (source="relay").
  */
 export function recordHealth(
   provider: string,
   ok: boolean,
   durationMs: number,
-  error?: string
+  error?: string,
+  source: "vps" | "relay" = "vps"
 ): void {
   const s = store();
   s.history.unshift({
     at: new Date().toISOString(),
     provider,
+    source,
     durationMs: ok ? durationMs : -1,
     ok,
     error: error?.slice(0, 120),
@@ -69,6 +72,7 @@ export function getHealthStats(): {
     string,
     { ok: number; fail: number; uptimePct: number; lastOk: boolean | null }
   >;
+  bySource: Record<"vps" | "relay", { ok: number; fail: number; lastAt: string | null }>;
   distribution: { label: string; count: number }[];
 } {
   const history = getHealthHistory();
@@ -129,6 +133,18 @@ export function getHealthStats(): {
     else buckets[4].count++;
   }
 
+  // Breakdown sumber: vps (poller) vs relay (RDP)
+  const bySource: Record<"vps" | "relay", { ok: number; fail: number; lastAt: string | null }> = {
+    vps: { ok: 0, fail: 0, lastAt: null },
+    relay: { ok: 0, fail: 0, lastAt: null },
+  };
+  for (const h of history) {
+    const src = h.source === "relay" ? "relay" : "vps";
+    if (h.ok) bySource[src].ok++;
+    else bySource[src].fail++;
+    if (!bySource[src].lastAt) bySource[src].lastAt = h.at;
+  }
+
   return {
     totalChecks: total,
     okCount: okChecks.length,
@@ -136,6 +152,7 @@ export function getHealthStats(): {
     uptimePct: total > 0 ? Math.round((okChecks.length / total) * 100) : 0,
     duration,
     perProvider,
+    bySource,
     distribution: buckets,
   };
 }
