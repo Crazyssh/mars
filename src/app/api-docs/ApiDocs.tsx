@@ -471,19 +471,45 @@ export default function ApiDocs({ userName }: { userName: string }) {
           />
 
           <Endpoint
+            method="GET"
+            path="/api/v1/orders"
+            desc="List riwayat order milik API key. Filter status opsional, paginated (max 100/halaman)."
+            example={`curl -H "Authorization: Bearer ${exampleKey}" \\
+  "${baseUrl}/api/v1/orders?status=pending&limit=100&page=1"`}
+            response={`{
+  "data": [
+    {
+      "orderId": "12345678",
+      "number": "+628123456789",
+      "service": "wa",
+      "serviceName": "whatsapp",
+      "country": "indonesia",
+      "status": "Sukses",
+      "otp": "123456",
+      "createdAt": 1716624000
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 100
+}
+
+// status filter: pending | success | expired | cancelled (opsional)`}
+          />
+
+          <Endpoint
             method="POST"
             path="/api/vN/order/:id/cancel"
-            desc="Batalkan order. v1/v2 min age 2 menit, v3/v4 min age 5 detik."
+            desc="Batalkan order. Keputusan (bisa/gak) ikut jawaban provider; kalau provider nolak, order tetap aktif."
             example={`curl -X POST \\
   -H "Authorization: Bearer ${exampleKey}" \\
   ${baseUrl}/api/v3/order/82968131/cancel`}
-            response={`{ "ok": true }
+            response={`{ "ok": true, "message": "Pesanan berhasil dibatalkan dan saldo telah dikembalikan." }
 
-// Sebelum min age:
+// Kalau provider nolak:
 {
-  "error": "Order can only be cancelled after 5 seconds. 3s remaining.",
-  "code": "TOO_EARLY",
-  "retryAfterSec": 3
+  "error": "Order tidak bisa dibatalkan",
+  "code": "CANCEL_REJECTED"
 }`}
           />
         </section>
