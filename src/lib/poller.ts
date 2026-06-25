@@ -18,11 +18,10 @@ const IDLE_MS = 60_000; // gak ada pending → cuma health check, hemat request
 const PENDING_TIMEOUT_MS = 22 * 60 * 1000;
 const BACKOFF_MS = 60_000; // kena 429 → mundur 1 menit
 const POLL_LIMIT = 100;
-// Hedged polling: jumlah request paralel per poll.
-// CATATAN: server ditznesia gampang overload — nembak paralel malah bikin
-// SEMUA request (termasuk order) lebih lambat. Jadi default 1 (gak hedge).
-const HEDGE_PENDING = 1; // pas ada order pending
-const HEDGE_IDLE = 1; // pas idle
+// Hedged polling: tembak N request paralel, pakai yg pertama balik.
+// Server ditznesia inkonsisten (0.2s s/d 23s), jadi race naikin peluang cepet.
+const HEDGE_PENDING = 3; // pas ada order pending (prioritas cepet)
+const HEDGE_IDLE = 1; // pas idle (hemat, gak perlu cepet)
 
 type Provider = "v1" | "v2" | "v3" | "v4";
 
