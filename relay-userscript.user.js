@@ -16,7 +16,7 @@
   const VPS_INGEST_URL = "https://api.clowatch.com/api/ingest"; // domain VPS lo
   const INGEST_SECRET = "f89041cf9f0079f90017483b1d5ec0f0733c718854e277c0"; // samain dengan INGEST_SECRET di .env VPS
   const ENDPOINT = "/orderv2?nomor=&status=&limit=100&page=1&action=infoOrder"; // endpoint infoOrder
-  const POLL_INTERVAL_MS = 3000; // polling tiap 3 detik (overlap, gak nunggu)
+  const POLL_INTERVAL_MS = 5000; // polling tiap 5 detik (samain kayak ditznesia, overlap)
   const MAX_INFLIGHT = 5; // max request barengan ke ditz (anti numpuk gak terhingga)
   // ======================================
 
