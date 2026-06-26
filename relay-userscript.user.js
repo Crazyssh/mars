@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Mars OTP Relay
 // @namespace    mars-relay
-// @version      1.2
-// @description  Polling infoOrder dari browser (RDP/PC) + anti-throttle audio, kirim ke VPS Mars. Jalan di tab ditznesia.com.
+// @version      1.3
+// @description  Polling infoOrder overlap dari browser (RDP) + anti-throttle, kirim ke VPS Mars. Jalan di tab ditznesia.com.
 // @match        https://ditznesia.com/*
 // @grant        GM_xmlhttpRequest
 // @connect      *
@@ -14,12 +14,14 @@
 
   // ====== KONFIGURASI — GANTI INI ======
   const VPS_INGEST_URL = "https://api.clowatch.com/api/ingest"; // domain VPS lo
-  const INGEST_SECRET = "GANTI_DENGAN_SECRET_YANG_SAMA_DI_ENV"; // samain dengan INGEST_SECRET di .env VPS
+  const INGEST_SECRET = "f89041cf9f0079f90017483b1d5ec0f0733c718854e277c0"; // samain dengan INGEST_SECRET di .env VPS
   const ENDPOINT = "/orderv2?nomor=&status=&limit=100&page=1&action=infoOrder"; // endpoint infoOrder
-  const POLL_INTERVAL_MS = 3000; // polling tiap 3 detik
+  const POLL_INTERVAL_MS = 3000; // polling tiap 3 detik (overlap, gak nunggu)
+  const MAX_INFLIGHT = 5; // max request barengan ke ditz (anti numpuk gak terhingga)
   // ======================================
 
-  let inflight = false;
+  let inflight = 0;
+  let lastAppliedAt = 0; // timestamp poll terakhir yang ke-relay (anti stale)
 
   function log(...a) { console.log("[mars-relay]", ...a); }
 
@@ -54,8 +56,11 @@
   }
 
   async function pollOnce() {
-    if (inflight) return;
-    inflight = true;
+    // Overlap: jangan nunggu poll sebelumnya kelar (kayak ditznesia sendiri).
+    // Tapi cap MAX_INFLIGHT biar gak numpuk tak terhingga kalau ditz mati.
+    if (inflight >= MAX_INFLIGHT) return;
+    inflight++;
+    const startedAt = Date.now();
     const t0 = performance.now();
     try {
       const res = await fetch(ENDPOINT, {
@@ -67,12 +72,16 @@
       let orders;
       try { orders = JSON.parse(text); } catch { log("respons bukan JSON (cookie expired?)"); return; }
       if (!Array.isArray(orders)) { log("respons bukan array"); return; }
+      // Take-first: cuma relay kalau poll ini LEBIH BARU dari yg udah ke-relay.
+      // Poll lama yang balik belakangan diabaikan (data udah keduluan yg baru).
+      if (startedAt <= lastAppliedAt) { log("skip stale (keduluan poll lebih baru)"); return; }
+      lastAppliedAt = startedAt;
       const dur = Math.round(performance.now() - t0);
       sendToVps(orders, dur);
     } catch (e) {
       log("error", e.message);
     } finally {
-      inflight = false;
+      inflight--;
     }
   }
 
