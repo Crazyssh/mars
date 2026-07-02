@@ -60,6 +60,19 @@ let refreshPromise: Promise<boolean> | null = null;
 let lastRefreshAt = 0;
 const REFRESH_COOLDOWN_MS = 15_000;
 
+// Status refresh terakhir — buat UI (POST fire-and-forget, GET baca status).
+interface RefreshStatus {
+  running: boolean;
+  at: number; // timestamp selesai (0 kalau belum pernah)
+  ok: boolean;
+  message: string;
+}
+let refreshStatus: RefreshStatus = { running: false, at: 0, ok: false, message: "belum pernah refresh" };
+
+export function getCfRefreshStatus(): RefreshStatus {
+  return { ...refreshStatus, running: refreshPromise !== null };
+}
+
 declare global {
   // eslint-disable-next-line no-var
   var __cfRefreshTimer: NodeJS.Timeout | undefined;
@@ -118,12 +131,15 @@ export async function refreshCfSession(): Promise<boolean> {
       await setSetting(SETTING_KEYS.MARS_CF_CLEARANCE, sol.cfClearance);
       await setSetting(SETTING_KEYS.MARS_USER_AGENT, sol.userAgent);
       lastRefreshAt = Date.now();
+      refreshStatus = { running: false, at: Date.now(), ok: true, message: "cf_clearance berhasil di-refresh via FlareSolverr" };
       console.log(
         `[cf-session] cf_clearance refreshed via FlareSolverr (UA: ${sol.userAgent.slice(0, 40)}...)`
       );
       return true;
     } catch (e) {
-      console.error(`[cf-session] refresh gagal: ${(e as Error).message}`);
+      const message = (e as Error).message;
+      refreshStatus = { running: false, at: Date.now(), ok: false, message };
+      console.error(`[cf-session] refresh gagal: ${message}`);
       return false;
     } finally {
       refreshPromise = null;

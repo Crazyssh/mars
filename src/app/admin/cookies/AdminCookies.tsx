@@ -76,13 +76,44 @@ export default function AdminCookies() {
       const data = await res.json();
       if (!res.ok) {
         setMsg({ type: "err", text: data.error ?? "Refresh gagal" });
+        setRefreshing(false);
         return;
       }
-      setMsg({ type: "ok", text: "✅ " + (data.message ?? "cf_clearance di-refresh") });
-      load();
+      setMsg({ type: "warn", text: "🔄 " + (data.message ?? "Refresh dimulai di background...") });
+
+      // Polling status tiap 5 detik (maks ~2 menit) — gak nahan request lama.
+      let tries = 0;
+      const maxTries = 24;
+      const poll = setInterval(async () => {
+        tries++;
+        try {
+          const s = await fetch("/api/admin/cf-refresh");
+          const sd = await s.json();
+          const st = sd.status;
+          if (st && !st.running && st.at > 0) {
+            clearInterval(poll);
+            setRefreshing(false);
+            if (st.ok) {
+              setMsg({ type: "ok", text: "✅ " + st.message });
+              load();
+            } else {
+              setMsg({ type: "err", text: "❌ " + st.message });
+            }
+          } else if (tries >= maxTries) {
+            clearInterval(poll);
+            setRefreshing(false);
+            setMsg({ type: "warn", text: "⏳ Masih jalan di background — cek lagi nanti." });
+          }
+        } catch {
+          // abaikan error polling sementara, lanjut coba lagi
+          if (tries >= maxTries) {
+            clearInterval(poll);
+            setRefreshing(false);
+          }
+        }
+      }, 5000);
     } catch {
       setMsg({ type: "err", text: "Network error" });
-    } finally {
       setRefreshing(false);
     }
   }
